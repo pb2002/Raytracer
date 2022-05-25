@@ -1,6 +1,6 @@
 ﻿#version 430 core
 
-#define MAX_PRIMITIVES 256
+#define MAX_PRIMITIVES 512
 #define MAX_LIGHTS 64
 
 #define EPSILON 0.00001
@@ -72,8 +72,30 @@ layout (std140, binding = 2) uniform SceneBlock {
     Light lights[MAX_LIGHTS];
 };
 
-void IntersectSphere(Ray ray, Sphere sphere, inout Intersection closest){
+// AABB
+// https://gist.github.com/DomNomNom/46bb1ce47f68d255fd5d
+bool CheckAABB(vec3 rayOrigin, vec3 rayDir, vec3 boxMin, vec3 boxMax) {
+    vec3 tMin = (boxMin - rayOrigin) / rayDir;
+    vec3 tMax = (boxMax - rayOrigin) / rayDir;
+    vec3 t1 = min(tMin, tMax);
+    vec3 t2 = max(tMin, tMax);
+    float tNear = max(max(t1.x, t1.y), t1.z);
+    float tFar = min(min(t2.x, t2.y), t2.z);
+    return tNear <= tFar && tFar > 0;
+};
+// optimized version for spheres
+bool CheckAABBSphere(vec3 rayOrigin, vec3 rayDir, vec3 position, float radius) {
+    vec3 t1 = (position - radius - rayOrigin) / rayDir;
+    vec3 t2 = (position + radius - rayOrigin) / rayDir;    
+    float tNear = max(max(t1.x, t1.y), t1.z);
+    float tFar = min(min(t2.x, t2.y), t2.z);
+    return tNear <= tFar && tFar > 0;  
+};
 
+void IntersectSphere(Ray ray, Sphere sphere, inout Intersection closest)
+{    
+    if (!CheckAABBSphere(ray.origin, ray.direction, sphere.position, sphere.radius)) return;
+        
     float r2 = sphere.radius * sphere.radius;
     vec3 c = sphere.position - ray.origin;
             
@@ -82,13 +104,13 @@ void IntersectSphere(Ray ray, Sphere sphere, inout Intersection closest){
     float p2 = dot(q,q);
 
     if (p2 > r2) return;
-    if (dot(c,c) <= r2) t += sqrt(r2 - p2); 
-    else t -= sqrt(r2 - p2);
-    if (t < 0) return;
+    t -= sqrt(r2 - p2);
+    
+    if (t < 0) return; // intersection point is behind the ray    
+    if (t > closest.distance) return;
     
     vec3 point = ray.origin + ray.direction * t;
     vec3 normal = normalize(point - sphere.position);
-    if (!(t <= closest.distance)) return;
     
     closest.distance = t;
     closest.point = point;

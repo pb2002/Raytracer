@@ -115,14 +115,6 @@ namespace Template
                 throw new Exception("Primitive buffer size too small");
 
             int loc;
-
-            // set the object count values
-            loc = GL.GetUniformLocation(programID, "sphereCount");
-            GL.ProgramUniform1(programID, loc, scene.spheres.Count);
-            loc = GL.GetUniformLocation(programID, "planeCount");
-            GL.ProgramUniform1(programID, loc, scene.planes.Count);
-            loc = GL.GetUniformLocation(programID, "lightCount");
-            GL.ProgramUniform1(programID, loc, scene.lights.Count);
             
             // sources for the code below:
             // https://www.lighthouse3d.com/tutorials/glsl-tutorial/uniform-variables/
@@ -197,6 +189,14 @@ namespace Template
             GL.BufferData(BufferTarget.UniformBuffer, dataBuf.Length * sizeof(float), dataBuf, BufferUsageHint.StaticDraw);
             // unbind the UBO
             GL.BindBuffer(BufferTarget.UniformBuffer, 0);
+            
+            // set the object count values
+            loc = GL.GetUniformLocation(programID, "sphereCount");
+            GL.ProgramUniform1(programID, loc, scene.spheres.Count);
+            loc = GL.GetUniformLocation(programID, "planeCount");
+            GL.ProgramUniform1(programID, loc, scene.planes.Count);
+            loc = GL.GetUniformLocation(programID, "lightCount");
+            GL.ProgramUniform1(programID, loc, scene.lights.Count);
             #endregion
         }
         

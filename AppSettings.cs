@@ -5,7 +5,7 @@
         // these values control the UBO size representing the scene.
         // these need to match the #define-statements in the fragment shader.
         // UBO size cannot exceed 16KB
-        private const int primitiveCount = 256;
+        private const int primitiveCount = 512;
         private const int lightCount = 64;
 
         private const float spawnFieldSize = 150f;
