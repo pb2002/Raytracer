@@ -1,12 +1,11 @@
-﻿using OpenTK;
+﻿using System;
+using System.Runtime.InteropServices;
+using OpenTK;
 
 namespace Template
 {
-    public class Light
+    public struct Light
     {
-        public const int sizeInBytes = 32;
-        public const int sizeInFloats = 8;
-        
         public Vector3 position;
         public Vector3 color;
         public float intensity;
@@ -17,5 +16,8 @@ namespace Template
             this.intensity = intensity;
             this.color = color;
         }
+        
+        public const int sizeInBytes = 4 * sizeInFloats;
+        public const int sizeInFloats = 8;
     }
 }

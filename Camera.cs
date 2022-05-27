@@ -21,6 +21,8 @@ namespace Template
         public Vector3 TopLeft { get; private set; }
         public Vector3 TopRight { get; private set; }
         public Vector3 BottomLeft { get; private set; }
+        
+        public Vector3 pivot = Vector3.Zero; // pivot point of the camera
 
         public void SetPosition(Vector3 p)
         {

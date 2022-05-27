@@ -6,9 +6,8 @@ namespace Template
 {
     public partial class MyApplication
     {
-        private float debugUnitScale = spawnFieldSize * 1.5f;
-        private Stopwatch fpsCounter = new Stopwatch();
-        private float frameTime;
+        private const float debugUnitScale = spawnFieldSize * 1.5f;
+        private bool debugMode;
         
         private int ConvertColor(Vector3 c)
         {
@@ -36,11 +35,11 @@ namespace Template
         // function for drawing a sphere graphic in the debug window
         void DrawDebugSphere(Sphere s)
         {
-            int color = ConvertColor(s.mat.color);
+            int color = ConvertColor(s.material.color);
             Vector2 center = WorldToDebug(s.position);
             float radius = s.radius * screen.height / debugUnitScale;
             Vector2 start = center + new Vector2(radius, 0);
-            
+            Vector2 circleStart = start;
             // draw 50 line segments
             for (float theta = 0; theta < 2 * (float) Math.PI; theta += (float) Math.PI / 25f)
             {
@@ -48,6 +47,8 @@ namespace Template
                 screen.Line((int)start.X, (int)start.Y, (int)end.X, (int)end.Y, color);
                 start = end;
             }
+            // connect the ends together
+            screen.Line((int)start.X, (int)start.Y, (int)circleStart.X, (int)circleStart.Y, color);
         }
         
         // function for drawing the raytracing graphic in the debug window
@@ -86,50 +87,51 @@ namespace Template
             }
             
         }
-        void Debug()
+        void DrawDebug()
         {
-            // draw the spheres
-            foreach (var primitive in scene.spheres)
+            if (debugMode)
             {
-                if (primitive is Sphere s)
-                {
-                    DrawDebugSphere(s);
-                }
-            }
-            DrawDebugRays();
+                // draw the text elements
+                float diagonal = camera.AspectRatio * camera.AspectRatio + 1;
+                diagonal = (float) Math.Sqrt(diagonal);
             
-            // draw the camera graphic
-            Vector2 camPos = WorldToDebug(camera.Position);
-            Vector2 imageLeft = WorldToDebug(camera.TopLeft);
-            Vector2 imageRight = WorldToDebug(camera.TopRight);
-            screen.Box((int)camPos.X-5, (int)camPos.Y-5, (int)camPos.X+5, (int)camPos.Y+5,0x00ffffff);
-            screen.Line((int)imageLeft.X, (int)imageLeft.Y, (int)imageRight.X, (int)imageRight.Y, 0x00ffffff);
-            
-            // draw the text elements
-            float diagonal = camera.AspectRatio * camera.AspectRatio + 1;
-            diagonal = (float) Math.Sqrt(diagonal);
-            
-            float fov = (float) (360 / Math.PI * Math.Atan(diagonal / (2 * camera.FocalLength)));
-            
-            screen.Print("WASD to move, QERF to rotate, Z/X for viewing distance", 10, 10, 0x00FFFFFF);
-            screen.Print($"FOV (+/-): {fov:F2}", 10, 30, 0x00FFFFFF);
-            screen.Print($"Tonemapping (T): {(enableTonemapping ? "ON" : "OFF")}", 10, 50, 0x00FFFFFF);
-            if (enableTonemapping) screen.Print($"Exposure bias ([ and ]): {exposureBias:F2}", 260, 50, 0x00FFFFFF);
-            
-            // draw the fps counter
-            float fps = 0;
-            if (fpsCounter.IsRunning)
-            {
-                fpsCounter.Stop();
-                frameTime = (float) fpsCounter.Elapsed.TotalSeconds;
-                fps = 1f / frameTime;
-                fpsCounter.Restart();
+                float fov = (float) (360 / Math.PI * Math.Atan(diagonal / (2 * camera.FocalLength)));
+                float fps = 1f / frameTime;
+
+                screen.Print($"FOV (+ and -): {fov:F2}", 10, 10, 0x00FFFFFF);
+                screen.Print($"Tonemapping (T): {(useTonemapping ? "ON" : "OFF")}", 10, 30, 0x00FFFFFF);
+                if (useTonemapping) screen.Print($"Exposure bias ([ and ]): {exposureBias:F2}", 10, 50, 0x00FFFFFF);
+                screen.Print($"FPS: {fps:F0}", 10, 70, 0x008888FF);
+                screen.Print($"SSBO: {primitiveBufferSize/256}KB", 120, 70, 0x008888FF);
+
+                screen.Print("Move: WASD", 10, screen.height - 70, 0x00FFFFFF);
+                screen.Print("Rotate: QERF", 10, screen.height - 50, 0x00FFFFFF);
+                screen.Print("Viewing distance: Z/X", 10, screen.height - 30, 0x00FFFFFF);
             }
             else
             {
-                fpsCounter.Start();
+                screen.Print("Press Tab to toggle debug info", 10, 10, 0x00FFFFFF);
+                // draw the spheres
+                foreach (var primitive in scene.spheres)
+                {
+                    if (primitive is Sphere s)
+                    {
+                        DrawDebugSphere(s);
+                    }
+                }
+                DrawDebugRays();
+            
+                // draw the camera graphic
+                Vector2 camPos = WorldToDebug(camera.Position);
+                Vector2 imageLeft = WorldToDebug(camera.TopLeft);
+                Vector2 imageRight = WorldToDebug(camera.TopRight);
+                screen.Box((int)camPos.X-5, (int)camPos.Y-5, (int)camPos.X+5, (int)camPos.Y+5,0x00ffffff);
+                screen.Line((int)imageLeft.X, (int)imageLeft.Y, (int)imageRight.X, (int)imageRight.Y, 0x00ffffff);   
             }
-            screen.Print($"FPS: {fps:F2}", 10, 80, 0x00FFFFFF);
+            
+            
+            
+            
         }
     }
 }

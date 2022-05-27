@@ -58,6 +58,7 @@
     <Compile Include="Primitive.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Ray.cs" />
+    <Compile Include="RaytracingShader.cs" />
     <Compile Include="Scene.cs" />
     <Compile Include="Sphere.cs" />
     <Compile Include="surface.cs" />

@@ -2,7 +2,7 @@
 
 namespace Template
 {
-    public class Intersection
+    public struct Intersection
     {
         public float dst;
         public Vector3 point;

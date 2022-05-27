@@ -1,9 +1,9 @@
 ﻿#version 430 core
 
-#define MAX_PRIMITIVES 512
-#define MAX_LIGHTS 64
+#define MAX_PRIMITIVES 8192
+#define MAX_LIGHTS 256
 
-#define EPSILON 0.00001
+#define EPSILON 0.0001
 #define MAXDST 100000000.0
 
 in vec3 position;
@@ -56,17 +56,21 @@ struct Camera {
 
 uniform Camera camera;
 
-uniform vec3 ambientColor;
 
 uniform bool useTonemapping;
 uniform float exposureBias;
+
+uniform int reflectionBounces;
 uniform float specularPow;
+uniform vec3 skyColor;
+uniform float ambientIntensity;
+uniform float shadowStrength;
 
 uniform int sphereCount;
 uniform int planeCount;
 uniform int lightCount;
 
-layout (std140, binding = 2) uniform SceneBlock {    
+layout (std430, binding = 2) buffer SceneBlock {    
     Sphere spheres[MAX_PRIMITIVES];     // MAX_PRIMITIVES * 8
     Plane planes[MAX_PRIMITIVES]; 
     Light lights[MAX_LIGHTS];
@@ -83,18 +87,10 @@ bool CheckAABB(vec3 rayOrigin, vec3 rayDir, vec3 boxMin, vec3 boxMax) {
     float tFar = min(min(t2.x, t2.y), t2.z);
     return tNear <= tFar && tFar > 0;
 };
-// optimized version for spheres
-bool CheckAABBSphere(vec3 rayOrigin, vec3 rayDir, vec3 position, float radius) {
-    vec3 t1 = (position - radius - rayOrigin) / rayDir;
-    vec3 t2 = (position + radius - rayOrigin) / rayDir;    
-    float tNear = max(max(t1.x, t1.y), t1.z);
-    float tFar = min(min(t2.x, t2.y), t2.z);
-    return tNear <= tFar && tFar > 0;  
-};
 
 void IntersectSphere(Ray ray, Sphere sphere, inout Intersection closest)
 {    
-    if (!CheckAABBSphere(ray.origin, ray.direction, sphere.position, sphere.radius)) return;
+    if (!CheckAABB(ray.origin, ray.direction, sphere.position - sphere.radius, sphere.position + sphere.radius)) return;
         
     float r2 = sphere.radius * sphere.radius;
     vec3 c = sphere.position - ray.origin;
@@ -145,11 +141,11 @@ Intersection IntersectWithScene(Ray ray) {
     return hit;
 }
 vec3 Shade(Ray ray, Intersection hit) {
-    vec3 ambient = vec3(0, 0.7, 1.0);
     if (hit.distance >= MAXDST){
-        return ambient;
+        return skyColor;
     }
-    vec3 result = ambient * 0.05;
+    vec3 result = skyColor * ambientIntensity;
+    
     for (int i = 0; i < lightCount; i++) {
         vec3 delta =  lights[i].position - hit.point;
         float dst2 = dot(delta, delta);
@@ -167,13 +163,14 @@ vec3 Shade(Ray ray, Intersection hit) {
         // specular --------------------------------------------------------
         vec3 refl = lightDir - 2 * dot(lightDir, hit.normal) * hit.normal;
         float rvdot = dot(ray.direction, refl);
-        float specularFactor = pow(max(rvdot, 0), 500) * hit.material.specular;
+        float specularFactor = pow(max(rvdot, 0), specularPow) * hit.material.specular;
         // -----------------------------------------------------------------
         
+        // diffuse
         float diffuseFactor = max(dot(lightDir, hit.normal), 0);
         
         vec3 composite = (hit.material.color * diffuseFactor + specularFactor) * lights[i].intensity / dst2;
-        if (shadow) composite *= 0.05f;        
+        if (shadow) composite *= 1 - shadowStrength;        
         result += composite;
     }
     return result;
@@ -183,7 +180,7 @@ vec3 Trace(Ray ray, int depth){
     vec3 result = vec3(0,0,0);
     
     float factor = 1;
-    for (int i = 0; i < depth; i++) {
+    for (int i = 0; i <= depth; i++) {
         Intersection hit = IntersectWithScene(ray);
         result += Shade(ray, hit) * factor;
         
@@ -204,14 +201,17 @@ Ray CreateCameraRay(Camera c, vec3 p){
 }
 
 // uncharted 2 tonemapper
+// https://www.gdcvault.com/play/1012351/Uncharted-2-HDR
 // http://filmicworlds.com/blog/filmic-tonemapping-operators/
-const float A = 0.15;
-const float B = 0.50;
-const float C = 0.10;
-const float D = 0.20;
-const float E = 0.02;
-const float F = 0.30;
-const float W = 11.2;
+// https://github.com/Zackin5/Filmic-Tonemapping-ReShade/blob/master/Uncharted2.fx
+
+const float A = 0.15; // Shoulder strength
+const float B = 0.60; // Linear strength
+const float C = 0.10; // Linear angle
+const float D = 0.50; // Toe strength
+const float E = 0.03; // Toe numerator
+const float F = 0.30; // Toe denominator
+const float W = 11.2; // Linear white point value
     
 vec3 Uncharted2Tonemap(vec3 x)
 {
@@ -233,7 +233,7 @@ void main()
 {
     vec3 uv = vec3(2 * position.x - 1, position.y, 0);
     Ray r = CreateCameraRay(camera, uv);
-    vec3 col = Trace(r, 3);
+    vec3 col = Trace(r, reflectionBounces);
     
     if (useTonemapping)    
         outputColor = vec4(Tonemap(col), 1.0);

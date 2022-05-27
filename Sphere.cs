@@ -1,15 +1,18 @@
 ﻿using System;
+using System.Runtime.InteropServices;
 using OpenTK;
 using OpenTK.Graphics.OpenGL;
 
 namespace Template
 {
-    public class Sphere : Primitive
+    [Serializable, StructLayout(LayoutKind.Sequential)]
+    public struct Sphere
     {
         public Vector3 position;
         public float radius;
-        
-        public override void Intersect(Ray ray, ref Intersection closest)
+        public Material material;
+
+        public void Intersect(Ray ray, ref Intersection closest)
         {
             float r2 = radius * radius;
             Vector3 c = position - ray.origin;
@@ -30,14 +33,16 @@ namespace Template
             closest.point = point;
         }
 
-        public Sphere(Vector3 position, float radius, Material mat)
+        public Sphere(Vector3 position, float radius, Material material)
         {
             this.position = position;
             this.radius = radius;
-            this.mat = mat;
+            this.material = material;
         }
-
-        public const int sizeInBytes = 32;
+        
+        public static readonly int Size = BlittableValueType<Sphere>.Stride;
+        
+        public const int sizeInBytes = 4 * sizeInFloats;
         public const int sizeInFloats = 8;
     }
 }
