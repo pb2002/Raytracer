@@ -121,7 +121,8 @@ vec3 SkyboxSample(vec3 direction){
     
     float latitude = 0.5 + 0.5 * dot(vec3(0,1,0), direction);
     
-    return texture(texture2, vec2(longitude, latitude)).xyz;        
+    // gamma correction
+    return pow(texture(texture2, vec2(longitude, latitude)).xyz, vec3(2.2, 2.2, 2.2));        
 }
 
 void IntersectSphere(Ray ray, Sphere sphere, inout Intersection closest)
