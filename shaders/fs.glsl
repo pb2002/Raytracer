@@ -176,16 +176,17 @@ Intersection IntersectWithScene(Ray ray) {
     
     return hit;
 }
+
 vec3 Shade(Ray ray, Intersection hit) {
     if (hit.distance >= MAXDST){
         return SkyboxSample(ray.direction);
-    }
-               
-    vec3 result = vec3(0,0,0);
-    
-    for (int i = 0; i < lightCount; i++) {
-        vec3 t = TextureSample(hit);
-        vec3 ambient = skyColor * ambientIntensity * hit.material.color * t; 
+    }              
+    vec3 t = TextureSample(hit);
+    vec3 ambient = skyColor * ambientIntensity * hit.material.color * t; 
+    vec3 result = ambient;
+    // repeat for each light
+    for (int i = 0; i < lightCount; i++) {                       
+        
         vec3 delta =  lights[i].position - hit.point;
         float dst2 = dot(delta, delta);
         vec3 lightDir = normalize(delta);       
@@ -210,7 +211,7 @@ vec3 Shade(Ray ray, Intersection hit) {
         
         vec3 composite = (hit.material.color * t * diffuseFactor + specularFactor) * lights[i].color * lights[i].intensity / dst2;
         if (shadow) composite *= 1.0 - shadowStrength;        
-        result += ambient + composite;
+        result += composite;
     }
     return result;
 }
