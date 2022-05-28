@@ -6,7 +6,6 @@ namespace Template
 {
     public partial class MyApplication
     {
-        private const float debugUnitScale = spawnFieldSize * 1.5f;
         private bool debugMode;
         
         private int ConvertColor(Vector3 c)
@@ -23,7 +22,7 @@ namespace Template
             Vector2 result = v.Xz;
             
             // rescale
-            float scale = screen.height / debugUnitScale;
+            float scale = screen.height / AppSettings.debugUnitScale;
             result *= scale;
             
             // offset
@@ -37,7 +36,7 @@ namespace Template
         {
             int color = ConvertColor(s.material.color);
             Vector2 center = WorldToDebug(s.position);
-            float radius = s.radius * screen.height / debugUnitScale;
+            float radius = s.radius * screen.height / AppSettings.debugUnitScale;
             Vector2 start = center + new Vector2(radius, 0);
             Vector2 circleStart = start;
             // draw 50 line segments
@@ -72,7 +71,7 @@ namespace Template
                 {
                     // lines bigger than 2 * sqrt(2) * debugUnitScale will always exceed screen bounds
                     // 3 > 2 * sqrt(2) so 3 * debugUnitScale will have us covered.
-                    point = r.origin + 3f * debugUnitScale * r.direction;
+                    point = r.origin + 3f * AppSettings.debugUnitScale * r.direction;
                 }
                 else
                 {
@@ -99,10 +98,10 @@ namespace Template
                 float fps = 1f / frameTime;
 
                 screen.Print($"FOV (+ and -): {fov:F2}", 10, 10, 0x00FFFFFF);
-                screen.Print($"Tonemapping (T): {(useTonemapping ? "ON" : "OFF")}", 10, 30, 0x00FFFFFF);
-                if (useTonemapping) screen.Print($"Exposure bias ([ and ]): {exposureBias:F2}", 10, 50, 0x00FFFFFF);
+                screen.Print($"Tonemapping (T): {(AppSettings.UseTonemapping ? "ON" : "OFF")}", 10, 30, 0x00FFFFFF);
+                if (AppSettings.UseTonemapping) screen.Print($"Exposure bias ([ and ]): {AppSettings.ExposureBias:F2}", 10, 50, 0x00FFFFFF);
                 screen.Print($"FPS: {fps:F0}", 10, 70, 0x008888FF);
-                screen.Print($"SSBO: {primitiveBufferSize/256}KB", 120, 70, 0x008888FF);
+                screen.Print($"SSBO: {AppSettings.PrimitiveBufferSize/256}KB", 120, 70, 0x008888FF);
 
                 screen.Print("Move: WASD", 10, screen.height - 70, 0x00FFFFFF);
                 screen.Print("Rotate: QERF", 10, screen.height - 50, 0x00FFFFFF);

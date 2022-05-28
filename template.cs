@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Drawing;
 using OpenTK;
+using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL;
 
 // The template provides you with a window which displays a 'linear frame buffer', i.e.
@@ -26,11 +27,12 @@ namespace Template
 		static int screenID;            // unique integer identifier of the OpenGL texture
 		static MyApplication app;       // instance of the application
 		static bool terminated = false; // application terminates gracefully when this is true
+
 		protected override void OnLoad( EventArgs e )
 		{
 			// called during application initialization
 			GL.Hint( HintTarget.PerspectiveCorrectionHint, HintMode.Nicest );
-			ClientSize = new Size( MyApplication.viewportWidth, MyApplication.viewportHeight );
+			ClientSize = new Size( AppSettings.ViewportWidth, AppSettings.ViewportHeight );
 			app = new MyApplication();
 			app.screen = new Surface( Width, Height );
 			Sprite.target = app.screen;
@@ -80,7 +82,7 @@ namespace Template
 			GL.BindTexture( TextureTarget.Texture2D, screenID );
 			GL.TexImage2D( TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba,
 						   app.screen.width, app.screen.height, 0,
-						   OpenTK.Graphics.OpenGL.PixelFormat.Bgra,
+						   PixelFormat.Bgra,
 						   PixelType.UnsignedByte, app.screen.pixels
 						 );
 			// draw screen filling quad
@@ -91,9 +93,6 @@ namespace Template
 			GL.TexCoord2( 0.5f, 0.0f ); GL.Vertex2( 0.0f, 1.0f );
 			GL.TexCoord2( 0.0f, 0.0f ); GL.Vertex2( -1.0f, 1.0f );
 			GL.End();
-			
-			GL.Enable(EnableCap.DepthTest);
-			GL.Disable(EnableCap.Texture2D);
 			GL.Clear(ClearBufferMask.DepthBufferBit);
 			app.OnRender();
 			
@@ -103,7 +102,11 @@ namespace Template
 		public static void Main( string[] args )
 		{
 			// entry point
-			using( OpenTKApp app = new OpenTKApp() ) { app.Run( 30.0, 0.0 ); }
+			using (OpenTKApp app = new OpenTKApp())
+			{
+				app.Title = "MARBLE Engine";
+				app.Run( 30.0, 0.0 );
+			}
 		}
 	}
 }

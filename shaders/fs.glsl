@@ -5,9 +5,13 @@
 
 #define EPSILON 0.0001
 #define MAXDST 100000000.0
+#define AA_SAMPLES 2
+#define PI 3.141592654
 
 in vec3 position;
 out vec4 outputColor;
+
+// Structs -------------------------------------------------------------------------
 
 struct Ray {
     vec3 origin;
@@ -41,7 +45,7 @@ struct Intersection {
 
 struct Light {
     vec3 position;
-    // 4 bytes padding
+    float size;
     vec3 color;    
     float intensity;
 };
@@ -53,9 +57,10 @@ struct Camera {
     vec3 right;
     float aspectRatio;    
 };
+// ---------------------------------------------------------------------------------
 
+// Uniforms ------------------------------------------------------------------------
 uniform Camera camera;
-
 
 uniform bool useTonemapping;
 uniform float exposureBias;
@@ -70,11 +75,18 @@ uniform int sphereCount;
 uniform int planeCount;
 uniform int lightCount;
 
+uniform vec2 resolution;
+uniform sampler2D texture1;
+uniform sampler2D texture2;
+// ---------------------------------------------------------------------------------
+
+// SSBO ----------------------------------------------------------------------------
 layout (std430, binding = 2) buffer SceneBlock {    
     Sphere spheres[MAX_PRIMITIVES];     // MAX_PRIMITIVES * 8
     Plane planes[MAX_PRIMITIVES]; 
     Light lights[MAX_LIGHTS];
 };
+// ---------------------------------------------------------------------------------
 
 // AABB
 // https://gist.github.com/DomNomNom/46bb1ce47f68d255fd5d
@@ -87,6 +99,30 @@ bool CheckAABB(vec3 rayOrigin, vec3 rayDir, vec3 boxMin, vec3 boxMax) {
     float tFar = min(min(t2.x, t2.y), t2.z);
     return tNear <= tFar && tFar > 0;
 };
+
+// nicer texture sampling for spheres
+vec3 TextureSample(Intersection hit){
+    vec3 n = abs(hit.normal);
+    vec3 xsample = texture(texture1, hit.point.zy * 0.5 + vec2(0.217,-0.142)).xyz * n.x;
+    vec3 ysample = texture(texture1, hit.point.xz * 0.5 + vec2(-0.072,-0.208)).xyz * n.y; 
+    vec3 zsample = texture(texture1, hit.point.xy * 0.5).xyz * n.z;      
+    return sqrt(xsample * xsample + ysample * ysample + zsample * zsample);
+}
+
+// equirectangular sampling
+vec3 SkyboxSample(vec3 direction){
+    float longitude = 0;
+    if (abs(direction.x) < 0.001) {
+        direction.x = 0.001;         
+    }
+    longitude = atan(direction.z / direction.x);        
+    if (direction.x < 0) longitude += PI;
+    longitude /= 2 * PI;
+    
+    float latitude = 0.5 + 0.5 * dot(vec3(0,1,0), direction);
+    
+    return texture(texture2, vec2(longitude, latitude)).xyz;        
+}
 
 void IntersectSphere(Ray ray, Sphere sphere, inout Intersection closest)
 {    
@@ -142,18 +178,21 @@ Intersection IntersectWithScene(Ray ray) {
 }
 vec3 Shade(Ray ray, Intersection hit) {
     if (hit.distance >= MAXDST){
-        return skyColor;
+        return SkyboxSample(ray.direction);
     }
-    vec3 result = skyColor * ambientIntensity;
+               
+    vec3 result = vec3(0,0,0);
     
     for (int i = 0; i < lightCount; i++) {
+        vec3 t = TextureSample(hit);
+        vec3 ambient = skyColor * ambientIntensity * hit.material.color * t; 
         vec3 delta =  lights[i].position - hit.point;
         float dst2 = dot(delta, delta);
-        vec3 lightDir = normalize(delta);
+        vec3 lightDir = normalize(delta);       
         
         // shadows ---------------------------------------------------------
         Ray lightRay = Ray(hit.point + 0.0001 * lightDir, lightDir);
-        Intersection lightHit = IntersectWithScene(lightRay);
+        Intersection lightHit = IntersectWithScene(lightRay);        
         bool shadow = false;
         
         if (lightHit.distance >= MAXDST) shadow = false;
@@ -169,9 +208,9 @@ vec3 Shade(Ray ray, Intersection hit) {
         // diffuse
         float diffuseFactor = max(dot(lightDir, hit.normal), 0);
         
-        vec3 composite = (hit.material.color * diffuseFactor + specularFactor) * lights[i].intensity / dst2;
-        if (shadow) composite *= 1 - shadowStrength;        
-        result += composite;
+        vec3 composite = (hit.material.color * t * diffuseFactor + specularFactor) * lights[i].color * lights[i].intensity / dst2;
+        if (shadow) composite *= 1.0 - shadowStrength;        
+        result += ambient + composite;
     }
     return result;
 }
@@ -184,9 +223,8 @@ vec3 Trace(Ray ray, int depth){
         Intersection hit = IntersectWithScene(ray);
         result += Shade(ray, hit) * factor;
         
-        vec3 refl = ray.direction - 2 * dot(ray.direction, hit.normal) * hit.normal;
-              
-        float fresnel = pow(1 - abs(dot(ray.direction, hit.normal)), 3.5f);
+        vec3 refl = ray.direction - 2 * dot(ray.direction, hit.normal) * hit.normal;             
+        float fresnel = pow(1 - abs(dot(ray.direction, hit.normal)), 5f);
         ray = Ray(hit.point + refl * 0.001, refl);
         factor *= fresnel * hit.material.specular;
     }
@@ -208,7 +246,7 @@ Ray CreateCameraRay(Camera c, vec3 p){
 const float A = 0.15; // Shoulder strength
 const float B = 0.60; // Linear strength
 const float C = 0.10; // Linear angle
-const float D = 0.50; // Toe strength
+const float D = 0.10; // Toe strength
 const float E = 0.03; // Toe numerator
 const float F = 0.30; // Toe denominator
 const float W = 11.2; // Linear white point value
@@ -220,7 +258,7 @@ vec3 Uncharted2Tonemap(vec3 x)
 vec3 Tonemap(vec3 v) {    
     vec3 toned = Uncharted2Tonemap(v * exposureBias);
     
-    // white balance & white point
+    // white balance
     vec3 w = Uncharted2Tonemap(vec3(W, W, W));
     vec3 whiteScale = 1 / w;
     vec3 wbColor = toned * whiteScale;
@@ -228,13 +266,23 @@ vec3 Tonemap(vec3 v) {
     // gamma correction
     return vec3(pow(wbColor.x, 1 / 2.2), pow(wbColor.y, 1 / 2.2), pow(wbColor.z, 1 / 2.2));
 }
+// ------------------------------------------------------------------------------------------
 
 void main()
 {
     vec3 uv = vec3(2 * position.x - 1, position.y, 0);
-    Ray r = CreateCameraRay(camera, uv);
-    vec3 col = Trace(r, reflectionBounces);
+    vec3 col = vec3(0,0,0);
     
+    vec3 pixelOffset = vec3(1 / resolution.x, 1 / resolution.y, 0) / AA_SAMPLES;
+      
+    // antialiasing (SSAA)
+    for (int y = 0; y < AA_SAMPLES; y++) {
+        for (int x = 0; x < AA_SAMPLES; x++) {
+            vec3 offset = (x - 0.5) * camera.right * pixelOffset.x + (y - 0.5) * camera.up * pixelOffset.y;                         
+            Ray _r = CreateCameraRay(camera, uv + offset);
+            col += 1.0 / (AA_SAMPLES * AA_SAMPLES) * Trace(_r, reflectionBounces);
+        }
+    }          
     if (useTonemapping)    
         outputColor = vec4(Tonemap(col), 1.0);
     else

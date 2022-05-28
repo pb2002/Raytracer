@@ -29,55 +29,66 @@ namespace Template
         private float frameTime = 1f;
         
         // ===========================================================================================================
+        private Vector3 RandomColor()
+        {
+            Vector3 color = new Vector3((float) rng.NextDouble(), (float) rng.NextDouble(),
+                (float) rng.NextDouble());
+
+            // this code makes the random colors look a bit nicer
+            color -= Vector3.One * Math.Min(color.X, Math.Min(color.Y, color.Z));
+            color /= Math.Max(color.X, Math.Max(color.Y, color.Z));
+            return color;
+        }
         
         // create scene
         private void InitScene()
         {
+            Console.WriteLine("Constructing Scene...");
             scene = new Scene();
             scene.planes.AddRange(new Plane[]
             {
-                new Plane(new Vector3(0, 0, 0), Vector3.UnitY, new Material(new Vector3(0.7f, 0.7f, 0.7f), 0.1f, false))
+                new Plane(new Vector3(0, 0, 0), Vector3.UnitY, new Material(new Vector3(0.7f, 0.7f, 0.7f), 0.1f))
             });
-            
-            for (int i = 0; i < sphereCount; i++)
+            Sphere[] spheres = new Sphere[AppSettings.SphereCount];
+            int idx = 0;
+            for (int i = 0; i < spheres.Length; i++)
             {
                 float r = (float) Math.Pow(rng.NextDouble(), 4);
                 float radius = 1 + r * 3;
 
                 Vector3 pos = Vector3.Zero;
-                
+
                 // poisson disk sampling (kinda)
                 bool valid = false;
                 int attempts = 0;
                 while (!valid && attempts < 50)
                 {
-                    pos = new Vector3(0.5f * spawnFieldSize - (float) rng.NextDouble() * spawnFieldSize, radius,
-                        0.5f * spawnFieldSize - (float) rng.NextDouble() * spawnFieldSize);
+                    pos = new Vector3(0.5f * AppSettings.SpawnFieldSize - (float) rng.NextDouble() * AppSettings.SpawnFieldSize, radius,
+                        0.5f * AppSettings.SpawnFieldSize - (float) rng.NextDouble() * AppSettings.SpawnFieldSize);
                     valid = true;
-                    if (scene.spheres.Any(s => (s.position - pos).Length < radius + s.radius))
+                    if (spheres.Any(s => (s.position - pos).Length < radius + s.radius))
                     {
                         valid = false;
                         attempts++;
                     }
-                    
                 }
-                if (!valid) continue;
-                
-                Vector3 color = new Vector3((float) rng.NextDouble(), (float) rng.NextDouble(),
-                    (float) rng.NextDouble());
-                
-                // this code makes the random colors look a bit nicer
-                color -= Vector3.One * Math.Min(color.X, Math.Min(color.Y, color.Z));
-                color /= Math.Max(color.X, Math.Max(color.Y, color.Z));
 
-                float specular = (float) rng.NextDouble();
-                scene.spheres.Add(new Sphere(pos, radius, new Material(color, specular, true)));
+                if (!valid) continue;
+                Vector3 color = RandomColor();
+
+                spheres[idx] = new Sphere(pos, radius, new Material(color, 1));
+                idx++;
+            };
+            scene.spheres.AddRange(spheres);
+            Console.WriteLine($"Spheres spawned: {idx}");
+            for (int i = 0; i < 6; i++)
+            {
+                Vector3 pos = new Vector3(
+                    0.5f * AppSettings.SpawnFieldSize - (float) rng.NextDouble() * AppSettings.SpawnFieldSize,
+                    15, 0.5f * AppSettings.SpawnFieldSize - (float) rng.NextDouble() * AppSettings.SpawnFieldSize);
+                Vector3 color = Vector3.Lerp(RandomColor(), Vector3.One, 0.4f);
+                scene.lights.Add(new Light(pos, 0.1f, color, 1000f));
             }
-            scene.lights.AddRange(new[]
-                {
-                    new Light(new Vector3(-1000, 1500, -1500), 5000000, new Vector3(1, 0.94f, 0.3f)),
-                }
-            );
             camera = new Camera(new Vector3(0, 3, -10), Vector3.UnitZ, 2, screen.width/2, screen.height);
         }
         
@@ -96,11 +107,12 @@ namespace Template
             shader.SetIntUniform("planeCount", scene.planes.Count);
             shader.SetIntUniform("lightCount", scene.lights.Count);
 
-            shader.SetIntUniform("reflectionBounces", reflectionBounces);
-            shader.SetFloatUniform("specularPow", specularPow);
-            shader.SetVector3Uniform("skyColor", skyColor);
-            shader.SetFloatUniform("ambientIntensity", ambientIntensity);
-            shader.SetFloatUniform("shadowStrength", shadowStrength);
+            shader.SetIntUniform("reflectionBounces", AppSettings.ReflectionBounces);
+            shader.SetFloatUniform("specularPow", AppSettings.SpecularPow);
+            shader.SetVector3Uniform("skyColor", AppSettings.SkyColor);
+            shader.SetFloatUniform("ambientIntensity", AppSettings.AmbientIntensity);
+            shader.SetFloatUniform("shadowStrength", AppSettings.ShadowStrength);
+            shader.SetVector2Uniform("resolution", new Vector2(AppSettings.ViewportWidth/2f, AppSettings.ViewportHeight));
             
             // create and write to SSBO
             shader.CreateSceneSSBO(scene.CreateDataBuffer());
@@ -117,8 +129,8 @@ namespace Template
         private void UpdateDynamicUniforms()
         {
             shader.SetCameraUniform(camera);
-            shader.SetBoolUniform("useTonemapping", useTonemapping);
-            shader.SetFloatUniform("exposureBias", exposureBias);
+            shader.SetBoolUniform("useTonemapping", AppSettings.UseTonemapping);
+            shader.SetFloatUniform("exposureBias", AppSettings.ExposureBias);
         }
 
         private void HandleInput()
@@ -129,51 +141,51 @@ namespace Template
             
             // camera controls -----------------------------------------------------------------------------------
             if (keyboardState.IsKeyDown(Key.E)) 
-                camera.SetPosition(camera.Position + cameraSpeed * 0.02f * frameTime * camera.Right * camDistance);
+                camera.SetPosition(camera.Position + AppSettings.CameraSpeed * 0.03f * frameTime * camDistance * camera.Right);
             
             if (keyboardState.IsKeyDown(Key.Q)) 
-                camera.SetPosition(camera.Position - cameraSpeed * 0.02f * frameTime * camera.Right * camDistance);
+                camera.SetPosition(camera.Position - AppSettings.CameraSpeed * 0.03f * frameTime * camDistance * camera.Right);
 
             if (keyboardState.IsKeyDown(Key.Z) && camDistance > 0.5f) 
-                camera.SetPosition(camera.Position + cameraSpeed * frameTime * camera.ViewDirection);
+                camera.SetPosition(camera.Position + AppSettings.CameraSpeed * frameTime * camera.ViewDirection);
             
             if (keyboardState.IsKeyDown(Key.X)) 
-                camera.SetPosition(camera.Position - cameraSpeed * frameTime * camera.ViewDirection);
+                camera.SetPosition(camera.Position - AppSettings.CameraSpeed * frameTime * camera.ViewDirection);
 
             var steepness = Vector3.Dot(camera.ViewDirection, -Vector3.UnitY);
-            if (keyboardState.IsKeyDown(Key.R) && steepness < 0.9f) 
-                camera.SetPosition(camera.Position + cameraSpeed * frameTime * camera.Up);
+            if (keyboardState.IsKeyDown(Key.R) && steepness < 0.98f) 
+                camera.SetPosition(camera.Position + AppSettings.CameraSpeed * 0.03f * frameTime * camDistance * camera.Up);
             
-            if (keyboardState.IsKeyDown(Key.F) && steepness > 0.1f) 
-                camera.SetPosition(camera.Position - cameraSpeed * frameTime * camera.Up);
+            if (keyboardState.IsKeyDown(Key.F) && steepness > -0.95f) 
+                camera.SetPosition(camera.Position - AppSettings.CameraSpeed * 0.03f * frameTime * camDistance * camera.Up);
             
             // flattened forward direction
             Vector3 forward = Vector3.Normalize(new Vector3(camera.ViewDirection.X, 0, camera.ViewDirection.Z));
 
             if (keyboardState.IsKeyDown(Key.W))
             {
-                var delta = forward * cameraSpeed * frameTime;
+                var delta = forward * AppSettings.CameraSpeed * frameTime;
                 camera.pivot += delta;
                 camera.SetPosition(camera.Position + delta);
             }
 
             if (keyboardState.IsKeyDown(Key.S))
             {
-                var delta = forward * cameraSpeed * frameTime;
+                var delta = forward * AppSettings.CameraSpeed * frameTime;
                 camera.pivot -= delta;
                 camera.SetPosition(camera.Position - delta);
             }
 
             if (keyboardState.IsKeyDown(Key.D))
             {
-                var delta = camera.Right * cameraSpeed * frameTime;
+                var delta = camera.Right * AppSettings.CameraSpeed * frameTime;
                 camera.pivot += delta;
                 camera.SetPosition(camera.Position + delta);
             }
 
             if (keyboardState.IsKeyDown(Key.A))
             {
-                var delta = camera.Right * cameraSpeed * frameTime;
+                var delta = camera.Right * AppSettings.CameraSpeed * frameTime;
                 camera.pivot -= delta;
                 camera.SetPosition(camera.Position - delta);
             }
@@ -198,7 +210,7 @@ namespace Template
             {
                 if (!tPressedLastFrame)
                 {
-                    useTonemapping = !useTonemapping;
+                    AppSettings.UseTonemapping = !AppSettings.UseTonemapping;
                     tPressedLastFrame = true;   
                 }
             }
@@ -216,12 +228,12 @@ namespace Template
 
             if (keyboardState.IsKeyDown(Key.LBracket))
             {
-                exposureBias = Math.Max(0.25f, exposureBias - 0.05f);
+                AppSettings.ExposureBias = Math.Max(0.25f, AppSettings.ExposureBias - 0.05f);
             }
 
             if (keyboardState.IsKeyDown(Key.RBracket))
             {
-                exposureBias = Math.Min(10f, exposureBias + 0.05f);
+                AppSettings.ExposureBias = Math.Min(10f, AppSettings.ExposureBias + 0.05f);
             }
         }
         

@@ -2,41 +2,33 @@
 
 namespace Template
 {
-    partial class MyApplication
+    public static class AppSettings
     {
-        public const int viewportWidth = 1024;
-
-        public const int viewportHeight = 512;
+        public const int ViewportWidth = 1600;
+        public const int ViewportHeight = ViewportWidth / 2;
         
         // these values control the SSBO size representing the scene.
         // these need to match the #define-statements in the fragment shader.
-        public const int primitiveCount = 8192;
-        public const int lightCount = 256;
-
-        public const float spawnFieldSize = 350f;
-        public const int sphereCount = 5000;
-
-        public const float cameraSpeed = 30f;
-
-        // tonemapping
-        public bool useTonemapping = true;
-        // tonemapping exposure bias
-        public float exposureBias = 3.0f;
-
-        // reflection bounces
-        public int reflectionBounces = 2;
-        // specular power
-        public float specularPow = 250f;
-        // sky color
-        public Vector3 skyColor = new Vector3(0.3f, 0.8f, 1.0f);
-        // ambient light intensity
-        public float ambientIntensity = 0.05f;
-        // shadow strength
-        public float shadowStrength = 0.95f;
+        public const int MaxPrimitiveCount = 8192;
+        public const int MaxLightCount = 256;
         
-        public const int primitiveBufferSize =
-            primitiveCount * Sphere.sizeInFloats
-            + primitiveCount * Plane.sizeInFloats
-            + lightCount * Light.sizeInFloats;
+        public const float SpawnFieldSize = 100f;
+        public const int SphereCount = 128;
+
+        public const int ReflectionBounces = 2;
+        public const float SpecularPow = 250f;
+        public static Vector3 SkyColor = new Vector3(0.15f, 0.25f, 0.5f);
+        public const float AmbientIntensity = 0.1f;
+        public const float ShadowStrength = 0.97f;
+
+        public const float debugUnitScale = SpawnFieldSize * 1.5f;
+
+        public const float CameraSpeed = 30f;
+
+        public static bool UseTonemapping = true;
+        public static float ExposureBias = 3.0f;
+        public const int PrimitiveBufferSize = MaxPrimitiveCount * Sphere.sizeInFloats
+                                               + MaxPrimitiveCount * Plane.sizeInFloats
+                                               + MaxLightCount * Light.sizeInFloats;
     }
 }

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using OpenTK;
 
 namespace Template
@@ -21,8 +22,6 @@ namespace Template
 
             return closest;
         }
-
-
         
         // Enjoy the hardcoded trainwreck below this comment.
         
@@ -31,8 +30,9 @@ namespace Template
         // Google didn't help me out either, other than pointing out that I should not be doing this in C#.
         public float[] CreateDataBuffer()
         {
+            Console.WriteLine("Populating scene data buffer...");
             // create a big chungus array
-            float[] dataBuffer = new float[MyApplication.primitiveBufferSize];
+            float[] dataBuffer = new float[AppSettings.PrimitiveBufferSize];
             
             // the SSBO is laid out like this:
             // Sphere[primitiveCount]
@@ -40,13 +40,13 @@ namespace Template
             // Light[lightCount]
 
             // check if the object counts do not exceed their maximum values
-            if (spheres.Count > MyApplication.primitiveCount
-                || planes.Count > MyApplication.primitiveCount
-                || lights.Count > MyApplication.lightCount)
+            if (spheres.Count > AppSettings.MaxPrimitiveCount
+                || planes.Count > AppSettings.MaxPrimitiveCount
+                || lights.Count > AppSettings.MaxLightCount)
                 throw new Exception("Buffer size too small");
 
             // then populate the big chungus array
-            for (int i = 0; i < spheres.Count; i++)
+            Parallel.For(0, spheres.Count, i =>
             {
                 var s = spheres[i];
                 var base_idx = i * Sphere.sizeInFloats;
@@ -59,10 +59,10 @@ namespace Template
                 dataBuffer[base_idx + 5] = s.material.color.Y;
                 dataBuffer[base_idx + 6] = s.material.color.Z;
                 dataBuffer[base_idx + 7] = s.material.specular;
-            }
+            });
 
-            int offset = MyApplication.primitiveCount * Sphere.sizeInFloats;
-            for (int i = 0; i < planes.Count; i++)
+            int offset = AppSettings.MaxPrimitiveCount * Sphere.sizeInFloats;
+            Parallel.For(0, planes.Count, i =>
             {
                 var s = planes[i];
                 var base_idx = i * Plane.sizeInFloats + offset;
@@ -79,10 +79,10 @@ namespace Template
                 dataBuffer[base_idx + 9] = s.material.color.Y;
                 dataBuffer[base_idx + 10] = s.material.color.Z;
                 dataBuffer[base_idx + 11] = s.material.specular;
-            }
+            });
 
-            offset += MyApplication.primitiveCount * Plane.sizeInFloats;
-            for (int i = 0; i < lights.Count; i++)
+            offset += AppSettings.MaxPrimitiveCount * Plane.sizeInFloats;
+            Parallel.For(0, lights.Count, i =>
             {
                 var l = lights[i];
                 var base_idx = i * Light.sizeInFloats + offset;
@@ -90,12 +90,12 @@ namespace Template
                 dataBuffer[base_idx + 0] = l.position.X;
                 dataBuffer[base_idx + 1] = l.position.Y;
                 dataBuffer[base_idx + 2] = l.position.Z;
-                // 16 byte rule
+                dataBuffer[base_idx + 3] = l.size;
                 dataBuffer[base_idx + 4] = l.color.X;
                 dataBuffer[base_idx + 5] = l.color.Y;
                 dataBuffer[base_idx + 6] = l.color.Z;
                 dataBuffer[base_idx + 7] = l.intensity;
-            }
+            });
 
             // oh lawd he comin
             return dataBuffer;

@@ -10,7 +10,7 @@ namespace Template
         public Vector3 color;
         public float specular;
 
-        public Material(Vector3 color, float specular, bool metallic)
+        public Material(Vector3 color, float specular)
         {
             this.color = color;
             this.specular = specular;
