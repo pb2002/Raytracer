@@ -22,7 +22,7 @@ namespace Template
         public Vector3 TopRight { get; private set; }
         public Vector3 BottomLeft { get; private set; }
         
-        public Vector3 pivot = Vector3.Zero; // pivot point of the camera
+        public Vector3 Pivot = Vector3.Zero; // pivot point of the camera
 
         public void SetPosition(Vector3 p)
         {
@@ -56,11 +56,11 @@ namespace Template
 
         public Camera(Vector3 position, Vector3 viewDirection, float focalLength, int screenWidth, int screenHeight)
         {
-            this.Position = position;
-            this.ViewDirection = viewDirection;
-            this.FocalLength = focalLength;
-            this.ScreenWidth = screenWidth;
-            this.ScreenHeight = screenHeight;
+            Position = position;
+            ViewDirection = viewDirection;
+            FocalLength = focalLength;
+            ScreenWidth = screenWidth;
+            ScreenHeight = screenHeight;
             RecalculateParameters();
         }
 

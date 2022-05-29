@@ -21,6 +21,7 @@ struct Ray {
 struct Material {
     vec3 color;
     float specular;
+    bool metallic;
 };
 struct Sphere {
     vec3 position;
@@ -30,9 +31,9 @@ struct Sphere {
 
 struct Plane {
     vec3 position;
-    // 4 bytes padding
+    float _p0; // forced padding
     vec3 normal;
-    // 4 bytes padding
+    float _p1; // forced padding
     Material material;
 };
 
@@ -111,11 +112,12 @@ vec3 TextureSample(Intersection hit){
 
 // equirectangular sampling
 vec3 SkyboxSample(vec3 direction){
-    float longitude = 0;
-    if (abs(direction.x) < 0.001) {
-        direction.x = 0.001;         
-    }
-    longitude = atan(direction.z / direction.x);        
+    
+    // prevent division by zero
+    if (abs(direction.x) < 0.0001)
+        direction.x = 0.0001;         
+        
+    float longitude = atan(direction.z / direction.x);        
     if (direction.x < 0) longitude += PI;
     longitude /= 2 * PI;
     
@@ -126,18 +128,22 @@ vec3 SkyboxSample(vec3 direction){
 }
 
 void IntersectSphere(Ray ray, Sphere sphere, inout Intersection closest)
-{    
-    if (!CheckAABB(ray.origin, ray.direction, sphere.position - sphere.radius, sphere.position + sphere.radius)) return;
+{
+    // AABB Check
+    // branch prediction misses are very slow so this actually doesn't improve performance
+    
+    // if (!CheckAABB(ray.origin, ray.direction, sphere.position - sphere.radius, sphere.position + sphere.radius)) return;
         
     float r2 = sphere.radius * sphere.radius;
     vec3 c = sphere.position - ray.origin;
             
     float t = dot(c, ray.direction);
+    
     vec3 q = c - t * ray.direction;
-    float p2 = dot(q,q);
+    float determinant = r2 - dot(q,q);
 
-    if (p2 > r2) return;
-    t -= sqrt(r2 - p2);
+    if (determinant < 0) return;
+    t -= sqrt(determinant);
     
     if (t < 0) return; // intersection point is behind the ray    
     if (t > closest.distance) return;
@@ -163,72 +169,105 @@ void IntersectPlane(Ray ray, Plane plane, inout Intersection closest) {
         closest.material = plane.material;
 }
 
+// Get the closest intersection with the scene
 Intersection IntersectWithScene(Ray ray) {
     
     // dummy hit with big distance
-    Intersection hit = Intersection(MAXDST, vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), Material(vec3(0.0, 0.0, 0.0), 0));
+    Intersection hit = Intersection(MAXDST, vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), Material(vec3(0.0, 0.0, 0.0), 0, false));
     
+    // check all primitives
     for (int i = 0; i < sphereCount; i++){
         IntersectSphere(ray, spheres[i], hit);
     }
     for (int i = 0; i < planeCount; i++){
         IntersectPlane(ray, planes[i], hit);
     }
-    
+        
     return hit;
 }
 
 vec3 Shade(Ray ray, Intersection hit) {
-    if (hit.distance >= MAXDST){
+    // ray did not hit anything
+    if (hit.distance >= MAXDST) {
+        // return skybox color
         return SkyboxSample(ray.direction);
     }              
+    
+    // sample color from texture
+    // all objects use the same texture because per-object textures are hard
+    // to achieve using glsl (because of 16 textures per shader limitation).    
     vec3 t = TextureSample(hit);
-    vec3 ambient = skyColor * ambientIntensity * hit.material.color * t; 
+    
+    // ambient color component
+    vec3 ambient = skyColor * ambientIntensity * hit.material.color * t;
+         
     vec3 result = ambient;
-    // repeat for each light
+    
+    // iterate through all lights
     for (int i = 0; i < lightCount; i++) {                       
-        
-        vec3 delta =  lights[i].position - hit.point;
-        float dst2 = dot(delta, delta);
-        vec3 lightDir = normalize(delta);       
+        Light l = lights[i];
+        vec3 toLight =  l.position - hit.point; // point to light vector        
+        float dst2 = dot(toLight, toLight); // squared light distance
+        // light ray direction
+        vec3 lightDir = normalize(toLight);       
         
         // shadows ---------------------------------------------------------
-        Ray lightRay = Ray(hit.point + 0.0001 * lightDir, lightDir);
-        Intersection lightHit = IntersectWithScene(lightRay);        
-        bool shadow = false;
+               
+        // cast a light ray
+        Ray lightRay = Ray(hit.point + 0.0001 * lightDir, lightDir);      
+        Intersection lightHit = IntersectWithScene(lightRay);                
         
-        if (lightHit.distance >= MAXDST) shadow = false;
-        else shadow = length(delta) > lightHit.distance;
+        // there is only a shadow if the lightRay hits something closer to
+        // the ray origin than the light source.
+        bool shadow = lightHit.distance < MAXDST && dst2 > lightHit.distance * lightHit.distance;
+                
         // -----------------------------------------------------------------
-        
-        // specular --------------------------------------------------------
-        vec3 refl = lightDir - 2 * dot(lightDir, hit.normal) * hit.normal;
-        float rvdot = dot(ray.direction, refl);
-        float specularFactor = pow(max(rvdot, 0), specularPow) * hit.material.specular;
-        // -----------------------------------------------------------------
-        
+                      
         // diffuse
         float diffuseFactor = max(dot(lightDir, hit.normal), 0);
+        vec3 diffuse = (hit.material.metallic) ? vec3(0,0,0) : hit.material.color * t * diffuseFactor;
         
-        vec3 composite = (hit.material.color * t * diffuseFactor + specularFactor) * lights[i].color * lights[i].intensity / dst2;
-        if (shadow) composite *= 1.0 - shadowStrength;        
+        // specular --------------------------------------------------------
+        vec3 refl = lightDir - 2 * dot(lightDir, hit.normal) * hit.normal; // reflected light ray
+        float rvdot = dot(ray.direction, refl);
+        float specularFactor = pow(max(rvdot, 0), specularPow) * hit.material.specular;
+        vec3 specularColor = hit.material.metallic ? hit.material.color : vec3(1,1,1);
+        vec3 specular = specularColor * specularFactor;
+        // -----------------------------------------------------------------
+
+        
+        vec3 composite = (diffuse + specular) 
+            * l.color     // color
+            * l.intensity // intensity
+            / dst2; // inverse square law
+        
+        // apply shadow
+        if (shadow) composite *= 1.0 - shadowStrength;
+                        
         result += composite;
     }
     return result;
 }
 
-vec3 Trace(Ray ray, int depth){
+vec3 Trace(Ray ray, int depth) {
     vec3 result = vec3(0,0,0);
     
-    float factor = 1;
-    for (int i = 0; i <= depth; i++) {
+    vec3 factor = vec3(1,1,1); // reflection contribution factor
+    
+    for (int i = 0; i <= depth; i++) { // for the given number of bounces
+    
         Intersection hit = IntersectWithScene(ray);
         result += Shade(ray, hit) * factor;
         
+        // reflection ray
         vec3 refl = ray.direction - 2 * dot(ray.direction, hit.normal) * hit.normal;             
-        float fresnel = pow(1 - abs(dot(ray.direction, hit.normal)), 5f);
         ray = Ray(hit.point + refl * 0.001, refl);
-        factor *= fresnel * hit.material.specular;
+        
+        // fresnel factor
+        float fresnel = pow(1 - abs(dot(ray.direction, hit.normal)), 5f);
+        
+        // update reflection factor
+        factor *= hit.material.specular * (hit.material.metallic ? hit.material.color : fresnel * vec3(1,1,1));
     }
     return result;
 }
@@ -280,7 +319,7 @@ void main()
     // antialiasing (SSAA)
     for (int y = 0; y < AA_SAMPLES; y++) {
         for (int x = 0; x < AA_SAMPLES; x++) {
-            vec3 offset = (x - 0.5) * camera.right * pixelOffset.x + (y - 0.5) * camera.up * pixelOffset.y;                         
+            vec3 offset = x * camera.right * pixelOffset.x + y * camera.up * pixelOffset.y;                         
             Ray _r = CreateCameraRay(camera, uv + offset);
             col += 1.0 / (AA_SAMPLES * AA_SAMPLES) * Trace(_r, reflectionBounces);
         }

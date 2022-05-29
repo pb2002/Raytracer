@@ -14,38 +14,27 @@ namespace Template
 {
     partial class MyApplication
     {
-        private Random rng = new Random();
-        public Surface screen;
+        public Surface Screen;
         
-        private Scene scene;
-        private Camera camera;
+        private Scene _scene;
+        private Camera _camera;
 
-        private RaytracingShader shader; // shader program ids
+        private RaytracingShader _shader; // shader program ids
 
-        private bool tPressedLastFrame; // memory state for tonemap toggle
-        private bool tabPressedLastFrame; // memory state for debug toggle
+        private bool _tPressedLastFrame; // memory state for tonemap toggle
+        private bool _tabPressedLastFrame; // memory state for debug toggle
         
-        private Stopwatch fpsCounter = new Stopwatch();
-        private float frameTime = 1f;
+        private Stopwatch _fpsCounter = new Stopwatch();
+        private float _frameTime = 1f;
         
         // ===========================================================================================================
-        private Vector3 RandomColor()
-        {
-            Vector3 color = new Vector3((float) rng.NextDouble(), (float) rng.NextDouble(),
-                (float) rng.NextDouble());
 
-            // this code makes the random colors look a bit nicer
-            color -= Vector3.One * Math.Min(color.X, Math.Min(color.Y, color.Z));
-            color /= Math.Max(color.X, Math.Max(color.Y, color.Z));
-            return color;
-        }
-        
         // create scene
         private void InitScene()
         {
             Console.WriteLine("Constructing Scene...");
-            scene = new Scene();
-            scene.planes.AddRange(new Plane[]
+            _scene = new Scene();
+            _scene.Planes.AddRange(new Plane[]
             {
                 new Plane(new Vector3(0, 0, 0), Vector3.UnitY, new Material(new Vector3(0.7f, 0.7f, 0.7f), 0.1f))
             });
@@ -53,7 +42,7 @@ namespace Template
             int idx = 0;
             for (int i = 0; i < spheres.Length; i++)
             {
-                float r = (float) Math.Pow(rng.NextDouble(), 4);
+                float r = (float) Math.Pow(Utils.Rng.NextDouble(), 4);
                 float radius = 1 + r * 3;
 
                 Vector3 pos = Vector3.Zero;
@@ -63,10 +52,10 @@ namespace Template
                 int attempts = 0;
                 while (!valid && attempts < 50)
                 {
-                    pos = new Vector3(0.5f * AppSettings.SpawnFieldSize - (float) rng.NextDouble() * AppSettings.SpawnFieldSize, radius,
-                        0.5f * AppSettings.SpawnFieldSize - (float) rng.NextDouble() * AppSettings.SpawnFieldSize);
+                    pos = new Vector3(0.5f * AppSettings.SpawnFieldSize - (float) Utils.Rng.NextDouble() * AppSettings.SpawnFieldSize, radius,
+                        0.5f * AppSettings.SpawnFieldSize - (float) Utils.Rng.NextDouble() * AppSettings.SpawnFieldSize);
                     valid = true;
-                    if (spheres.Any(s => (s.position - pos).Length < radius + s.radius))
+                    if (spheres.Any(s => (s.Position - pos).Length < radius + s.Radius))
                     {
                         valid = false;
                         attempts++;
@@ -74,48 +63,49 @@ namespace Template
                 }
 
                 if (!valid) continue;
-                Vector3 color = RandomColor();
+                Vector3 color = Utils.RandomColor();
+                bool metallic = Utils.Rng.NextDouble() > 0.8;
 
-                spheres[idx] = new Sphere(pos, radius, new Material(color, 1));
+                spheres[idx] = new Sphere(pos, radius, new Material(metallic ? new Vector3(0.7f, 0.7f, 0.7f) : color, 1, metallic));
                 idx++;
             };
-            scene.spheres.AddRange(spheres);
+            _scene.Spheres.AddRange(spheres);
             Console.WriteLine($"Spheres spawned: {idx}");
             for (int i = 0; i < 6; i++)
             {
                 Vector3 pos = new Vector3(
-                    0.5f * AppSettings.SpawnFieldSize - (float) rng.NextDouble() * AppSettings.SpawnFieldSize,
-                    15, 0.5f * AppSettings.SpawnFieldSize - (float) rng.NextDouble() * AppSettings.SpawnFieldSize);
-                Vector3 color = Vector3.Lerp(RandomColor(), Vector3.One, 0.4f);
-                scene.lights.Add(new Light(pos, 0.1f, color, 1000f));
+                    0.5f * AppSettings.SpawnFieldSize - (float) Utils.Rng.NextDouble() * AppSettings.SpawnFieldSize,
+                    15, 0.5f * AppSettings.SpawnFieldSize - (float) Utils.Rng.NextDouble() * AppSettings.SpawnFieldSize);
+                Vector3 color = Vector3.Lerp(Utils.RandomColor(), Vector3.One, 0.4f);
+                _scene.Lights.Add(new Light(pos, 0.1f, color, 1000f));
             }
-            camera = new Camera(new Vector3(0, 3, -10), Vector3.UnitZ, 2, screen.width/2, screen.height);
+            _camera = new Camera(new Vector3(0, 3, -10), Vector3.UnitZ, 2, Screen.Width/2, Screen.Height);
         }
         
         // initialize OpenGL
         private void InitGL()
         {
             // load the shader --------------------------------------------------------------
-            shader = new RaytracingShader("../../shaders/vs.glsl", "../../shaders/fs.glsl");
+            _shader = new RaytracingShader("../../shaders/vs.glsl", "../../shaders/fs.glsl");
             // ------------------------------------------------------------------------------
             
             // set dynamic uniform values
             UpdateDynamicUniforms();
             
             // set the object count values
-            shader.SetIntUniform("sphereCount", scene.spheres.Count);
-            shader.SetIntUniform("planeCount", scene.planes.Count);
-            shader.SetIntUniform("lightCount", scene.lights.Count);
+            _shader.SetIntUniform("sphereCount", _scene.Spheres.Count);
+            _shader.SetIntUniform("planeCount", _scene.Planes.Count);
+            _shader.SetIntUniform("lightCount", _scene.Lights.Count);
 
-            shader.SetIntUniform("reflectionBounces", AppSettings.ReflectionBounces);
-            shader.SetFloatUniform("specularPow", AppSettings.SpecularPow);
-            shader.SetVector3Uniform("skyColor", AppSettings.SkyColor);
-            shader.SetFloatUniform("ambientIntensity", AppSettings.AmbientIntensity);
-            shader.SetFloatUniform("shadowStrength", AppSettings.ShadowStrength);
-            shader.SetVector2Uniform("resolution", new Vector2(AppSettings.ViewportWidth/2f, AppSettings.ViewportHeight));
+            _shader.SetIntUniform("reflectionBounces", AppSettings.ReflectionBounces);
+            _shader.SetFloatUniform("specularPow", AppSettings.SpecularPow);
+            _shader.SetVector3Uniform("skyColor", AppSettings.SkyColor);
+            _shader.SetFloatUniform("ambientIntensity", AppSettings.AmbientIntensity);
+            _shader.SetFloatUniform("shadowStrength", AppSettings.ShadowStrength);
+            _shader.SetVector2Uniform("resolution", new Vector2(AppSettings.ViewportWidth/2f, AppSettings.ViewportHeight));
             
             // create and write to SSBO
-            shader.CreateSceneSSBO(scene.CreateDataBuffer());
+            _shader.CreateSceneSSBO(_scene.CreateDataBuffer());
         }
         
         // initialize
@@ -128,104 +118,111 @@ namespace Template
         // update shader uniform values that change during runtime
         private void UpdateDynamicUniforms()
         {
-            shader.SetCameraUniform(camera);
-            shader.SetBoolUniform("useTonemapping", AppSettings.UseTonemapping);
-            shader.SetFloatUniform("exposureBias", AppSettings.ExposureBias);
+            _shader.SetCameraUniform(_camera);
+            _shader.SetBoolUniform("useTonemapping", AppSettings.UseTonemapping);
+            _shader.SetFloatUniform("exposureBias", AppSettings.ExposureBias);
         }
 
         private void HandleInput()
         {
             var keyboardState = Keyboard.GetState();
             
-            var camDistance = Vector3.Distance(camera.Position, camera.pivot);
-            
-            // camera controls -----------------------------------------------------------------------------------
-            if (keyboardState.IsKeyDown(Key.E)) 
-                camera.SetPosition(camera.Position + AppSettings.CameraSpeed * 0.03f * frameTime * camDistance * camera.Right);
-            
-            if (keyboardState.IsKeyDown(Key.Q)) 
-                camera.SetPosition(camera.Position - AppSettings.CameraSpeed * 0.03f * frameTime * camDistance * camera.Right);
-
-            if (keyboardState.IsKeyDown(Key.Z) && camDistance > 0.5f) 
-                camera.SetPosition(camera.Position + AppSettings.CameraSpeed * frameTime * camera.ViewDirection);
-            
-            if (keyboardState.IsKeyDown(Key.X)) 
-                camera.SetPosition(camera.Position - AppSettings.CameraSpeed * frameTime * camera.ViewDirection);
-
-            var steepness = Vector3.Dot(camera.ViewDirection, -Vector3.UnitY);
-            if (keyboardState.IsKeyDown(Key.R) && steepness < 0.98f) 
-                camera.SetPosition(camera.Position + AppSettings.CameraSpeed * 0.03f * frameTime * camDistance * camera.Up);
-            
-            if (keyboardState.IsKeyDown(Key.F) && steepness > -0.95f) 
-                camera.SetPosition(camera.Position - AppSettings.CameraSpeed * 0.03f * frameTime * camDistance * camera.Up);
+            // camera controls -----------------------------------------------------------------------------------------
             
             // flattened forward direction
-            Vector3 forward = Vector3.Normalize(new Vector3(camera.ViewDirection.X, 0, camera.ViewDirection.Z));
+            Vector3 forward = Vector3.Normalize(new Vector3(_camera.ViewDirection.X, 0, _camera.ViewDirection.Z));
+            // camera-pivot distance
+            float camDistance = Vector3.Distance(_camera.Position, _camera.Pivot);
+            // steepness of the view direction
+            float steepness = Vector3.Dot(_camera.ViewDirection, -Vector3.UnitY);
+            
+            // rotation & zoom
+            if (keyboardState.IsKeyDown(Key.E)) 
+                _camera.SetPosition(_camera.Position + AppSettings.CameraSpeed * 0.03f * _frameTime * camDistance * _camera.Right);
+            
+            if (keyboardState.IsKeyDown(Key.Q)) 
+                _camera.SetPosition(_camera.Position - AppSettings.CameraSpeed * 0.03f * _frameTime * camDistance * _camera.Right);
 
+            if (keyboardState.IsKeyDown(Key.Z) && camDistance > 0.5f) 
+                _camera.SetPosition(_camera.Position + AppSettings.CameraSpeed * _frameTime * _camera.ViewDirection);
+            
+            if (keyboardState.IsKeyDown(Key.X)) 
+                _camera.SetPosition(_camera.Position - AppSettings.CameraSpeed * _frameTime * _camera.ViewDirection);
+            
+            if (keyboardState.IsKeyDown(Key.R) && steepness < 0.98f) 
+                _camera.SetPosition(_camera.Position + AppSettings.CameraSpeed * 0.03f * _frameTime * camDistance * _camera.Up);
+            
+            if (keyboardState.IsKeyDown(Key.F) && steepness > -0.95f) 
+                _camera.SetPosition(_camera.Position - AppSettings.CameraSpeed * 0.03f * _frameTime * camDistance * _camera.Up);
+            
+            // movement
             if (keyboardState.IsKeyDown(Key.W))
             {
-                var delta = forward * AppSettings.CameraSpeed * frameTime;
-                camera.pivot += delta;
-                camera.SetPosition(camera.Position + delta);
+                var delta = forward * AppSettings.CameraSpeed * _frameTime;
+                _camera.Pivot += delta;
+                _camera.SetPosition(_camera.Position + delta);
             }
-
             if (keyboardState.IsKeyDown(Key.S))
             {
-                var delta = forward * AppSettings.CameraSpeed * frameTime;
-                camera.pivot -= delta;
-                camera.SetPosition(camera.Position - delta);
+                var delta = forward * AppSettings.CameraSpeed * _frameTime;
+                _camera.Pivot -= delta;
+                _camera.SetPosition(_camera.Position - delta);
             }
-
-            if (keyboardState.IsKeyDown(Key.D))
-            {
-                var delta = camera.Right * AppSettings.CameraSpeed * frameTime;
-                camera.pivot += delta;
-                camera.SetPosition(camera.Position + delta);
-            }
-
             if (keyboardState.IsKeyDown(Key.A))
             {
-                var delta = camera.Right * AppSettings.CameraSpeed * frameTime;
-                camera.pivot -= delta;
-                camera.SetPosition(camera.Position - delta);
+                var delta = _camera.Right * AppSettings.CameraSpeed * _frameTime;
+                _camera.Pivot -= delta;
+                _camera.SetPosition(_camera.Position - delta);
             }
-
-            // look at pivot point
-            camera.SetViewDirection(Vector3.Normalize(camera.pivot - camera.Position));
-            // ---------------------------------------------------------------------------------------------------
+            if (keyboardState.IsKeyDown(Key.D))
+            {
+                var delta = _camera.Right * AppSettings.CameraSpeed * _frameTime;
+                _camera.Pivot += delta;
+                _camera.SetPosition(_camera.Position + delta);
+            }
             
+            // fov
             if (keyboardState.IsKeyDown(Key.Plus))
             {
-                float fl = Math.Min(10, camera.FocalLength + 0.02f * camera.FocalLength);
-                camera.SetFocalLength(fl);
+                float fl = Math.Min(10, _camera.FocalLength + 0.02f * _camera.FocalLength);
+                _camera.SetFocalLength(fl);
             }
-
             if (keyboardState.IsKeyDown(Key.Minus))
             {
-                float fl = Math.Max(0.25f, camera.FocalLength - 0.02f * camera.FocalLength);
-                camera.SetFocalLength(fl);
+                float fl = Math.Max(0.25f, _camera.FocalLength - 0.02f * _camera.FocalLength);
+                _camera.SetFocalLength(fl);
             }
-
+            
+            // look at the pivot point
+            _camera.SetViewDirection(Vector3.Normalize(_camera.Pivot - _camera.Position));
+            
+            // ---------------------------------------------------------------------------------------------------------
+            
+            // tonemapping toggle --------------------------------------------------------------------------------------
             if (keyboardState.IsKeyDown(Key.T))
             {
-                if (!tPressedLastFrame)
+                if (!_tPressedLastFrame)
                 {
                     AppSettings.UseTonemapping = !AppSettings.UseTonemapping;
-                    tPressedLastFrame = true;   
+                    _tPressedLastFrame = true;   
                 }
             }
-            else tPressedLastFrame = false;
+            else _tPressedLastFrame = false;
+            // ---------------------------------------------------------------------------------------------------------
             
+            // debug mode toggle ---------------------------------------------------------------------------------------
             if (keyboardState.IsKeyDown(Key.Tab))
             {
-                if (!tabPressedLastFrame)
+                if (!_tabPressedLastFrame)
                 {
-                    debugMode = !debugMode;
-                    tabPressedLastFrame = true;   
+                    _debugMode = !_debugMode;
+                    _tabPressedLastFrame = true;   
                 }
             }
-            else tabPressedLastFrame = false;
-
+            else _tabPressedLastFrame = false;
+            // ---------------------------------------------------------------------------------------------------------
+            
+            // exposure bias -------------------------------------------------------------------------------------------
             if (keyboardState.IsKeyDown(Key.LBracket))
             {
                 AppSettings.ExposureBias = Math.Max(0.25f, AppSettings.ExposureBias - 0.05f);
@@ -235,26 +232,28 @@ namespace Template
             {
                 AppSettings.ExposureBias = Math.Min(10f, AppSettings.ExposureBias + 0.05f);
             }
+            // ---------------------------------------------------------------------------------------------------------
         }
         
         // tick: renders one frame
         public void Tick()
         {
-            if (fpsCounter.IsRunning)
+            // fps counter
+            if (_fpsCounter.IsRunning)
             {
-                fpsCounter.Stop();
-                frameTime = (float) fpsCounter.Elapsed.TotalSeconds;
-                fpsCounter.Restart();
+                _fpsCounter.Stop();
+                _frameTime = (float) _fpsCounter.Elapsed.TotalSeconds;
+                _fpsCounter.Restart();
             }
             else
             {
-                fpsCounter.Start();
+                _fpsCounter.Start();
             }
             
             HandleInput();
             UpdateDynamicUniforms();
 
-            screen.Clear(0);
+            Screen.Clear(0);
             DrawDebug();
         }
         
@@ -262,7 +261,7 @@ namespace Template
         // draw call is done in a separate method.
         public void OnRender()
         {
-            shader.Draw();
+            _shader.Draw();
         }
     }
 }

@@ -22,27 +22,27 @@ using OpenTK.Graphics.OpenGL;
 
 namespace Template
 {
-	public class OpenTKApp : GameWindow
+	public class OpenTkApp : GameWindow
 	{
-		static int screenID;            // unique integer identifier of the OpenGL texture
-		static MyApplication app;       // instance of the application
-		static bool terminated = false; // application terminates gracefully when this is true
+		private static int _screenID;            // unique integer identifier of the OpenGL texture
+		private static MyApplication _app;       // instance of the application
+		private static bool _terminated = false; // application terminates gracefully when this is true
 
 		protected override void OnLoad( EventArgs e )
 		{
 			// called during application initialization
 			GL.Hint( HintTarget.PerspectiveCorrectionHint, HintMode.Nicest );
 			ClientSize = new Size( AppSettings.ViewportWidth, AppSettings.ViewportHeight );
-			app = new MyApplication();
-			app.screen = new Surface( Width, Height );
-			Sprite.target = app.screen;
-			screenID = app.screen.GenTexture();
-			app.Init();
+			_app = new MyApplication();
+			_app.Screen = new Surface( Width, Height );
+			Sprite.Target = _app.Screen;
+			_screenID = _app.Screen.GenTexture();
+			_app.Init();
 		}
 		protected override void OnUnload( EventArgs e )
 		{
 			// called upon app close
-			GL.DeleteTextures( 1, ref screenID );
+			GL.DeleteTextures( 1, ref _screenID );
 			Environment.Exit( 0 );      // bypass wait for key on CTRL-F5
 		}
 		protected override void OnResize( EventArgs e )
@@ -57,13 +57,13 @@ namespace Template
 		{
 			// called once per frame; app logic
 			var keyboard = OpenTK.Input.Keyboard.GetState();
-			if( keyboard[OpenTK.Input.Key.Escape] ) terminated = true;
+			if( keyboard[OpenTK.Input.Key.Escape] ) _terminated = true;
 		}
 		protected override void OnRenderFrame( FrameEventArgs e )
 		{
 			// called once per frame; render
-			app.Tick();
-			if (terminated)
+			_app.Tick();
+			if (_terminated)
 			{
 				Exit();
 				return;
@@ -79,11 +79,11 @@ namespace Template
 			GL.UseProgram(0);
 
 			// convert MyApplication.screen to OpenGL texture
-			GL.BindTexture( TextureTarget.Texture2D, screenID );
+			GL.BindTexture( TextureTarget.Texture2D, _screenID );
 			GL.TexImage2D( TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba,
-						   app.screen.width, app.screen.height, 0,
+						   _app.Screen.Width, _app.Screen.Height, 0,
 						   PixelFormat.Bgra,
-						   PixelType.UnsignedByte, app.screen.pixels
+						   PixelType.UnsignedByte, _app.Screen.Pixels
 						 );
 			// draw screen filling quad
 			// adjusted quad coords and tex coords to fill only half the screen
@@ -94,7 +94,7 @@ namespace Template
 			GL.TexCoord2( 0.0f, 0.0f ); GL.Vertex2( -1.0f, 1.0f );
 			GL.End();
 			GL.Clear(ClearBufferMask.DepthBufferBit);
-			app.OnRender();
+			_app.OnRender();
 			
 			// tell OpenTK we're done rendering
 			SwapBuffers();
@@ -102,7 +102,7 @@ namespace Template
 		public static void Main( string[] args )
 		{
 			// entry point
-			using (OpenTKApp app = new OpenTKApp())
+			using (OpenTkApp app = new OpenTkApp())
 			{
 				app.Title = "MARBLE Engine";
 				app.Run( 30.0, 0.0 );

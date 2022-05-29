@@ -1,24 +1,22 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 using OpenTK;
-using OpenTK.Graphics.OpenGL;
 
 namespace Template
 {
-    [Serializable, StructLayout(LayoutKind.Sequential)]
     public struct Sphere
     {
-        public Vector3 position;
-        public float radius;
-        public Material material;
+        public Vector3 Position;
+        public float Radius;
+        public Material Material;
 
         public void Intersect(Ray ray, ref Intersection closest)
         {
-            float r2 = radius * radius;
-            Vector3 c = position - ray.origin;
+            float r2 = Radius * Radius;
+            Vector3 c = Position - ray.Origin;
             
-            float t = Vector3.Dot(c, ray.direction);
-            Vector3 q = c - t * ray.direction;
+            float t = Vector3.Dot(c, ray.Direction);
+            Vector3 q = c - t * ray.Direction;
             float p2 = q.LengthSquared;
 
             if (p2 > r2) return;
@@ -26,23 +24,20 @@ namespace Template
             else t -= (float)Math.Sqrt(r2 - p2);
             if (t < 0) return;
             
-            Vector3 point = ray.origin + ray.direction * t;
-            if (!(t <= closest.dst)) return;
+            Vector3 point = ray.Origin + ray.Direction * t;
+            if (!(t <= closest.Dst)) return;
             
-            closest.dst = t;
-            closest.point = point;
+            closest.Dst = t;
+            closest.Point = point;
         }
 
         public Sphere(Vector3 position, float radius, Material material)
         {
-            this.position = position;
-            this.radius = radius;
-            this.material = material;
+            Position = position;
+            Radius = radius;
+            Material = material;
         }
-        
-        public static readonly int Size = BlittableValueType<Sphere>.Stride;
-        
-        public const int sizeInBytes = 4 * sizeInFloats;
-        public const int sizeInFloats = 8;
+
+        public const int SizeInFloats = 12;
     }
 }

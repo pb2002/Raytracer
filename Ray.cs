@@ -4,13 +4,13 @@ namespace Template
 {
     public struct Ray
     {
-        public Vector3 origin;
-        public Vector3 direction;
+        public Vector3 Origin;
+        public Vector3 Direction;
 
         public Ray(Vector3 origin, Vector3 direction)
         {
-            this.origin = origin;
-            this.direction = direction;
+            Origin = origin;
+            Direction = direction;
         }
     }
 }

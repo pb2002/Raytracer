@@ -4,13 +4,13 @@ namespace Template
 {
     public struct Intersection
     {
-        public float dst;
-        public Vector3 point;
+        public float Dst;
+        public Vector3 Point;
 
         public Intersection(float dst, Vector3 point)
         {
-            this.dst = dst;
-            this.point = point;
+            Dst = dst;
+            Point = point;
         }
     }
 }

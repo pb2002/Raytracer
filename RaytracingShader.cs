@@ -16,7 +16,6 @@ namespace Template
         public int ProgramID { get; private set; }
         public int VertShaderID { get; private set; }
         public int FragShaderID { get; private set; }
-
         
         // vertices of the image plane
         private float[] _verts = 
@@ -35,25 +34,31 @@ namespace Template
 
         public RaytracingShader(string vPath, string fPath)
         {
+            // load shaders
             ProgramID = GL.CreateProgram();
             VertShaderID = LoadShader(vPath, ShaderType.VertexShader, ProgramID);
             FragShaderID = LoadShader(fPath, ShaderType.FragmentShader, ProgramID);
             GL.LinkProgram(ProgramID);
             
             _vPositionAttribute = GL.GetAttribLocation(ProgramID, "vPosition");
+
             LoadTexture("../../assets/marble.png", TextureUnit.Texture1);
-            LoadTexture("../../assets/skybox.jpeg", TextureUnit.Texture2);
+            
+            // no hdr skyboxes sorry
+            LoadTexture("../../assets/skybox.jpg", TextureUnit.Texture2);
+            
             SetIntUniform("texture1", 1);
             SetIntUniform("texture2", 2);
             CreateVBO();
         }
-
+        
         // https://opentk.net/learn/chapter1/5-textures.html
         public void LoadTexture(string path, TextureUnit unit)
         {
             Console.WriteLine($"Loading image '{path}'...");
+            
             Image<Rgba32> image = Image.Load<Rgba32>(path);
-
+            
             // ImageSharp loads from the top-left pixel, whereas OpenGL loads from the bottom-left, causing the texture to be flipped vertically.
             // This will correct that, making the texture display properly.
             image.Mutate(x => x.Flip(FlipMode.Vertical));
@@ -65,11 +70,11 @@ namespace Template
             Parallel.For(0, image.Height, y => {
                 for (int x = 0; x < image.Width; x++)
                 {
-                    int base_idx = 4 * (x + y * image.Width);
-                    pixels[base_idx] = image[x,y].R;
-                    pixels[base_idx + 1] = image[x,y].G;
-                    pixels[base_idx + 2] = image[x,y].B;
-                    pixels[base_idx + 3] = image[x,y].A;
+                    int baseIdx = 4 * (x + y * image.Width);
+                    pixels[baseIdx] = image[x,y].R;
+                    pixels[baseIdx + 1] = image[x,y].G;
+                    pixels[baseIdx + 2] = image[x,y].B;
+                    pixels[baseIdx + 3] = image[x,y].A;
                 }
             });
             
@@ -143,13 +148,11 @@ namespace Template
             int loc = GL.GetUniformLocation(ProgramID, name);
             GL.ProgramUniform1(ProgramID, loc, value);   
         }
-
         public void SetIntUniform(string name, int value)
         {
             int loc = GL.GetUniformLocation(ProgramID, name);
             GL.ProgramUniform1(ProgramID, loc, value);   
         }
-
         public void SetBoolUniform(string name, bool value)
         {
             int loc = GL.GetUniformLocation(ProgramID, name);
@@ -174,8 +177,8 @@ namespace Template
             SetVector3Uniform("camera.right", camera.Right);
             SetFloatUniform("camera.aspectRatio", camera.AspectRatio);
         }
-        
-        int LoadShader(string name, ShaderType type, int program)
+
+        private int LoadShader(string name, ShaderType type, int program)
         {
             Console.WriteLine($"Loading shader '{name}'...");
             // create the shader

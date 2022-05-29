@@ -8,14 +8,14 @@ namespace Template
 {
     public class Scene
     {
-        public List<Sphere> spheres = new List<Sphere>();
-        public List<Plane> planes = new List<Plane>();
-        public List<Light> lights = new List<Light>();
+        public List<Sphere> Spheres = new List<Sphere>();
+        public List<Plane> Planes = new List<Plane>();
+        public List<Light> Lights = new List<Light>();
 
         public Intersection Intersect(Ray r)
         {
             Intersection closest = new Intersection(float.PositiveInfinity, Vector3.Zero);
-            foreach (var s in spheres)
+            foreach (var s in Spheres)
             {
                 s.Intersect(r, ref closest);
             }
@@ -40,61 +40,63 @@ namespace Template
             // Light[lightCount]
 
             // check if the object counts do not exceed their maximum values
-            if (spheres.Count > AppSettings.MaxPrimitiveCount
-                || planes.Count > AppSettings.MaxPrimitiveCount
-                || lights.Count > AppSettings.MaxLightCount)
+            if (Spheres.Count > AppSettings.MaxPrimitives
+                || Planes.Count > AppSettings.MaxPrimitives
+                || Lights.Count > AppSettings.MaxLights)
                 throw new Exception("Buffer size too small");
 
             // then populate the big chungus array
-            Parallel.For(0, spheres.Count, i =>
+            Parallel.For(0, Spheres.Count, i =>
             {
-                var s = spheres[i];
-                var base_idx = i * Sphere.sizeInFloats;
+                var s = Spheres[i];
+                var baseIdx = i * Sphere.SizeInFloats;
 
-                dataBuffer[base_idx + 0] = s.position.X;
-                dataBuffer[base_idx + 1] = s.position.Y;
-                dataBuffer[base_idx + 2] = s.position.Z;
-                dataBuffer[base_idx + 3] = s.radius;
-                dataBuffer[base_idx + 4] = s.material.color.X;
-                dataBuffer[base_idx + 5] = s.material.color.Y;
-                dataBuffer[base_idx + 6] = s.material.color.Z;
-                dataBuffer[base_idx + 7] = s.material.specular;
+                dataBuffer[baseIdx + 0] = s.Position.X;
+                dataBuffer[baseIdx + 1] = s.Position.Y;
+                dataBuffer[baseIdx + 2] = s.Position.Z;
+                dataBuffer[baseIdx + 3] = s.Radius;
+                dataBuffer[baseIdx + 4] = s.Material.Color.X;
+                dataBuffer[baseIdx + 5] = s.Material.Color.Y;
+                dataBuffer[baseIdx + 6] = s.Material.Color.Z;
+                dataBuffer[baseIdx + 7] = s.Material.Specular;
+                dataBuffer[baseIdx + 8] = s.Material.Metallic ? 1 : 0;
             });
 
-            int offset = AppSettings.MaxPrimitiveCount * Sphere.sizeInFloats;
-            Parallel.For(0, planes.Count, i =>
+            int offset = AppSettings.MaxPrimitives * Sphere.SizeInFloats;
+            Parallel.For(0, Planes.Count, i =>
             {
-                var s = planes[i];
-                var base_idx = i * Plane.sizeInFloats + offset;
+                var s = Planes[i];
+                var baseIdx = i * Plane.SizeInFloats + offset;
 
-                dataBuffer[base_idx + 0] = s.position.X;
-                dataBuffer[base_idx + 1] = s.position.Y;
-                dataBuffer[base_idx + 2] = s.position.Z;
+                dataBuffer[baseIdx + 0] = s.Position.X;
+                dataBuffer[baseIdx + 1] = s.Position.Y;
+                dataBuffer[baseIdx + 2] = s.Position.Z;
                 // because of 16 byte alignment rule, we skip base_idx + 3
-                dataBuffer[base_idx + 4] = s.normal.X;
-                dataBuffer[base_idx + 5] = s.normal.Y;
-                dataBuffer[base_idx + 6] = s.normal.Z;
+                dataBuffer[baseIdx + 4] = s.Normal.X;
+                dataBuffer[baseIdx + 5] = s.Normal.Y;
+                dataBuffer[baseIdx + 6] = s.Normal.Z;
                 // idem
-                dataBuffer[base_idx + 8] = s.material.color.X;
-                dataBuffer[base_idx + 9] = s.material.color.Y;
-                dataBuffer[base_idx + 10] = s.material.color.Z;
-                dataBuffer[base_idx + 11] = s.material.specular;
+                dataBuffer[baseIdx + 8] = s.Material.Color.X;
+                dataBuffer[baseIdx + 9] = s.Material.Color.Y;
+                dataBuffer[baseIdx + 10] = s.Material.Color.Z;
+                dataBuffer[baseIdx + 11] = s.Material.Specular;
+                dataBuffer[baseIdx + 12] = s.Material.Metallic ? 1 : 0;
             });
 
-            offset += AppSettings.MaxPrimitiveCount * Plane.sizeInFloats;
-            Parallel.For(0, lights.Count, i =>
+            offset += AppSettings.MaxPrimitives * Plane.SizeInFloats;
+            Parallel.For(0, Lights.Count, i =>
             {
-                var l = lights[i];
-                var base_idx = i * Light.sizeInFloats + offset;
+                var l = Lights[i];
+                var baseIdx = i * Light.SizeInFloats + offset;
 
-                dataBuffer[base_idx + 0] = l.position.X;
-                dataBuffer[base_idx + 1] = l.position.Y;
-                dataBuffer[base_idx + 2] = l.position.Z;
-                dataBuffer[base_idx + 3] = l.size;
-                dataBuffer[base_idx + 4] = l.color.X;
-                dataBuffer[base_idx + 5] = l.color.Y;
-                dataBuffer[base_idx + 6] = l.color.Z;
-                dataBuffer[base_idx + 7] = l.intensity;
+                dataBuffer[baseIdx + 0] = l.Position.X;
+                dataBuffer[baseIdx + 1] = l.Position.Y;
+                dataBuffer[baseIdx + 2] = l.Position.Z;
+                dataBuffer[baseIdx + 3] = l.Size;
+                dataBuffer[baseIdx + 4] = l.Color.X;
+                dataBuffer[baseIdx + 5] = l.Color.Y;
+                dataBuffer[baseIdx + 6] = l.Color.Z;
+                dataBuffer[baseIdx + 7] = l.Intensity;
             });
 
             // oh lawd he comin

@@ -6,21 +6,20 @@ namespace Template
 {
     public struct Light
     {
-        public Vector3 position;
-        public float size;
-        public Vector3 color;
-        public float intensity;
+        public Vector3 Position;
+        public float Size;
+        public Vector3 Color;
+        public float Intensity;
         
 
         public Light(Vector3 position, float size, Vector3 color, float intensity)
         {
-            this.position = position;
-            this.size = size;
-            this.color = color;
-            this.intensity = intensity;
+            Position = position;
+            Size = size;
+            Color = color;
+            Intensity = intensity;
         }
         
-        public const int sizeInBytes = 4 * sizeInFloats;
-        public const int sizeInFloats = 8;
+        public const int SizeInFloats = 8;
     }
 }
