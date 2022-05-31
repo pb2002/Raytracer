@@ -32,6 +32,9 @@ namespace Template
 		{
 			// called during application initialization
 			GL.Hint( HintTarget.PerspectiveCorrectionHint, HintMode.Nicest );
+			GL.ClearColor( Color.Black );
+			GL.Enable( EnableCap.Texture2D );
+			GL.Disable( EnableCap.DepthTest );
 			ClientSize = new Size( AppSettings.ViewportWidth, AppSettings.ViewportHeight );
 			_app = new MyApplication();
 			_app.Screen = new Surface( Width, Height );
@@ -68,10 +71,7 @@ namespace Template
 				Exit();
 				return;
 			}
-
-			GL.ClearColor( Color.Black );
-			GL.Enable( EnableCap.Texture2D );
-			GL.Disable( EnableCap.DepthTest );
+			
 			GL.Color3( 1.0f, 1.0f, 1.0f );
 			
 			// disable shaders
@@ -95,7 +95,6 @@ namespace Template
 			GL.End();
 			GL.Clear(ClearBufferMask.DepthBufferBit);
 			_app.OnRender();
-			
 			// tell OpenTK we're done rendering
 			SwapBuffers();
 		}

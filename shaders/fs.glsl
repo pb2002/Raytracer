@@ -5,7 +5,6 @@
 
 #define EPSILON 0.0001
 #define MAXDST 100000000.0
-#define AA_SAMPLES 2
 #define PI 3.141592654
 
 in vec3 position;
@@ -20,8 +19,8 @@ struct Ray {
 
 struct Material {
     vec3 color;
-    float specular;
-    bool metallic;
+    float roughness;
+    float metallic;
 };
 struct Sphere {
     vec3 position;
@@ -67,6 +66,7 @@ uniform bool useTonemapping;
 uniform float exposureBias;
 
 uniform int reflectionBounces;
+uniform vec2 tnoise;
 uniform float specularPow;
 uniform vec3 skyColor;
 uniform float ambientIntensity;
@@ -79,6 +79,10 @@ uniform int lightCount;
 uniform vec2 resolution;
 uniform sampler2D texture1;
 uniform sampler2D texture2;
+
+uniform bool fastMode;
+uniform bool firstSample;
+
 // ---------------------------------------------------------------------------------
 
 // SSBO ----------------------------------------------------------------------------
@@ -88,6 +92,25 @@ layout (std430, binding = 2) buffer SceneBlock {
     Light lights[MAX_LIGHTS];
 };
 // ---------------------------------------------------------------------------------
+
+// 2d noise
+float drand48(vec2 co) {
+  return 2 * fract(sin(dot(co.xy, vec2(12.9898,78.233))) * 43758.5453) - 1;
+}
+
+// reflect vector
+vec3 reflect(in vec3 v, in vec3 n) {
+  return v - 2 * dot(v, n) * n;
+}
+
+// random vec3 generator
+vec3 randv3(vec2 co) {
+    return vec3(drand48(co + vec2(4.381769)), 
+                        drand48(co - vec2(2.782163)), 
+                        drand48(co + vec2(9.428055)));
+}
+
+
 
 // AABB
 // https://gist.github.com/DomNomNom/46bb1ce47f68d255fd5d
@@ -121,10 +144,10 @@ vec3 SkyboxSample(vec3 direction){
     if (direction.x < 0) longitude += PI;
     longitude /= 2 * PI;
     
-    float latitude = 0.5 + 0.5 * dot(vec3(0,1,0), direction);
+    float latitude = 0.5 - 0.5 * dot(vec3(0,1,0), direction);
+        
     
-    // gamma correction
-    return pow(texture(texture2, vec2(longitude, latitude)).xyz, vec3(2.2, 2.2, 2.2));        
+    return pow(texture(texture2, vec2(longitude, latitude)).xyz, vec3(1.5)) * 4;       
 }
 
 void IntersectSphere(Ray ray, Sphere sphere, inout Intersection closest)
@@ -143,7 +166,8 @@ void IntersectSphere(Ray ray, Sphere sphere, inout Intersection closest)
     float determinant = r2 - dot(q,q);
 
     if (determinant < 0) return;
-    t -= sqrt(determinant);
+    if (dot(c,c) < r2) t += sqrt(determinant);
+    else t -= sqrt(determinant);
     
     if (t < 0) return; // intersection point is behind the ray    
     if (t > closest.distance) return;
@@ -173,7 +197,7 @@ void IntersectPlane(Ray ray, Plane plane, inout Intersection closest) {
 Intersection IntersectWithScene(Ray ray) {
     
     // dummy hit with big distance
-    Intersection hit = Intersection(MAXDST, vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), Material(vec3(0.0, 0.0, 0.0), 0, false));
+    Intersection hit = Intersection(MAXDST, vec3(0), vec3(0), Material(vec3(0), 0, 0));
     
     // check all primitives
     for (int i = 0; i < sphereCount; i++){
@@ -186,90 +210,71 @@ Intersection IntersectWithScene(Ray ray) {
     return hit;
 }
 
-vec3 Shade(Ray ray, Intersection hit) {
-    // ray did not hit anything
-    if (hit.distance >= MAXDST) {
-        // return skybox color
-        return SkyboxSample(ray.direction);
-    }              
-    
-    // sample color from texture
-    // all objects use the same texture because per-object textures are hard
-    // to achieve using glsl (because of 16 textures per shader limitation).    
-    vec3 t = TextureSample(hit);
-    
-    // ambient color component
-    vec3 ambient = skyColor * ambientIntensity * hit.material.color * t;
-         
-    vec3 result = ambient;
-    
-    // iterate through all lights
-    for (int i = 0; i < lightCount; i++) {                       
-        Light l = lights[i];
-        vec3 toLight =  l.position - hit.point; // point to light vector        
-        float dst2 = dot(toLight, toLight); // squared light distance
-        // light ray direction
-        vec3 lightDir = normalize(toLight);       
-        
-        // shadows ---------------------------------------------------------
-               
-        // cast a light ray
-        Ray lightRay = Ray(hit.point + 0.0001 * lightDir, lightDir);      
-        Intersection lightHit = IntersectWithScene(lightRay);                
-        
-        // there is only a shadow if the lightRay hits something closer to
-        // the ray origin than the light source.
-        bool shadow = lightHit.distance < MAXDST && dst2 > lightHit.distance * lightHit.distance;
-                
-        // -----------------------------------------------------------------
-                      
-        // diffuse
-        float diffuseFactor = max(dot(lightDir, hit.normal), 0);
-        vec3 diffuse = (hit.material.metallic) ? vec3(0,0,0) : hit.material.color * t * diffuseFactor;
-        
-        // specular --------------------------------------------------------
-        vec3 refl = lightDir - 2 * dot(lightDir, hit.normal) * hit.normal; // reflected light ray
-        float rvdot = dot(ray.direction, refl);
-        float specularFactor = pow(max(rvdot, 0), specularPow) * hit.material.specular;
-        vec3 specularColor = hit.material.metallic ? hit.material.color : vec3(1,1,1);
-        vec3 specular = specularColor * specularFactor;
-        // -----------------------------------------------------------------
+vec3 LambertianScatter(vec2 uv, vec3 normal) {        
+    return randv3(uv) + normal;
+}
+vec3 SpecularScatter(vec2 uv, vec3 v, vec3 normal, float roughness) {    
+    return reflect(v, normal) + roughness * randv3(uv);              
+}
+vec3 RandomPointInLight(vec2 uv, Light l) {    
+    return l.position + randv3(uv) * l.size;                      
+}
 
+float FresnelSchlick(float F0, float cos_theta_incident) {
+    float p = 1.f - cos_theta_incident;
+    
+    // fast n^5
+    float p2 = p * p;
+    return mix(F0, 1.0, p2 * p2 * p);
+}
+
+vec3 ShadeDirect(Intersection hit, vec2 uv) {
+    vec3 result = vec3(0);
+    for (int j = 0; j < lightCount; j++) {
+        vec3 lpoint = RandomPointInLight(uv, lights[j]);
+        vec3 delta = lpoint - hit.point;
+        vec3 lightDir = normalize(delta);
+        Ray lightRay = Ray(hit.point + EPSILON * lightDir, lightDir);
+        Intersection lightHit = IntersectWithScene(lightRay);
         
-        vec3 composite = (diffuse + specular) 
-            * l.color     // color
-            * l.intensity // intensity
-            / dst2; // inverse square law
-        
-        // apply shadow
-        if (shadow) composite *= 1.0 - shadowStrength;
-                        
-        result += composite;
-    }
+        if (lightHit.distance >= length(lpoint - hit.point)) {
+            float dfactor = max(0, dot(lightDir, hit.normal));
+            result += dfactor * hit.material.color * TextureSample(hit) * lights[j].color * lights[j].intensity / dot(delta,delta);
+        }            
+    }   
     return result;
 }
 
-vec3 Trace(Ray ray, int depth) {
-    vec3 result = vec3(0,0,0);
-    
+vec3 Trace(Ray ray, int depth, vec2 uv) {
+    vec3 color = vec3(0,0,0);                      
     vec3 factor = vec3(1,1,1); // reflection contribution factor
-    
+             
+    Ray sampleRay = ray;                    
+       
     for (int i = 0; i <= depth; i++) { // for the given number of bounces
-    
-        Intersection hit = IntersectWithScene(ray);
-        result += Shade(ray, hit) * factor;
+
+        Intersection hit = IntersectWithScene(sampleRay);                
+        if (hit.distance >= MAXDST){            
+            color += factor * SkyboxSample(sampleRay.direction);
+            break;                
+        }                    
         
-        // reflection ray
-        vec3 refl = ray.direction - 2 * dot(ray.direction, hit.normal) * hit.normal;             
-        ray = Ray(hit.point + refl * 0.001, refl);
+        vec3 t = TextureSample(hit);                
         
-        // fresnel factor
-        float fresnel = pow(1 - abs(dot(ray.direction, hit.normal)), 5f);
-        
-        // update reflection factor
-        factor *= hit.material.specular * (hit.material.metallic ? hit.material.color : fresnel * vec3(1,1,1));
+        if (hit.material.metallic > 0) {            
+            sampleRay.direction = SpecularScatter(uv, sampleRay.direction, hit.normal, hit.material.roughness);
+            if (dot(sampleRay.direction, hit.normal) > 0) factor *= hit.material.color * t * 0.5;
+        } 
+        else {            
+            vec3 direct = ShadeDirect(hit, uv);
+            color += direct * factor;
+            factor *= 0.5 * t * hit.material.color;            
+            sampleRay.direction = LambertianScatter(uv, hit.normal);          
+        }                                        
+        sampleRay.origin = hit.point + EPSILON * sampleRay.direction;                                   
     }
-    return result;
+        
+    return color;
 }
 
 Ray CreateCameraRay(Camera c, vec3 p){
@@ -311,17 +316,21 @@ vec3 Tonemap(vec3 v) {
 
 void main()
 {
+    vec3 pixelOffset = vec3(1 / resolution.x, 1 / resolution.y, 0);
     vec3 uv = vec3(2 * position.x - 1, position.y, 0);
     vec3 col = vec3(0,0,0);
     
-    vec3 pixelOffset = vec3(1 / resolution.x, 1 / resolution.y, 0) / AA_SAMPLES;
-      
-    // antialiasing (SSAA)
-    for (int y = 0; y < AA_SAMPLES; y++) {
-        for (int x = 0; x < AA_SAMPLES; x++) {
-            vec3 offset = x * camera.right * pixelOffset.x + y * camera.up * pixelOffset.y;                         
+    
+    if (fastMode) {
+        Ray _r = CreateCameraRay(camera, uv);        
+        col = Trace(_r, 1, uv.xy + tnoise * pixelOffset.xy);
+    }
+    else {            
+        for (int i = 0; i < 16; i++) {
+            vec2 rand = randv3(uv.xy + tnoise * i).xy;
+            vec3 offset = pixelOffset.x * rand.x * camera.right + pixelOffset.y * rand.y * camera.up;
             Ray _r = CreateCameraRay(camera, uv + offset);
-            col += 1.0 / (AA_SAMPLES * AA_SAMPLES) * Trace(_r, reflectionBounces);
+            col += Trace(_r, reflectionBounces, rand) * 1.0/16;
         }
     }          
     if (useTonemapping)    

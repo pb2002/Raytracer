@@ -8,13 +8,13 @@ namespace Template
     public struct Material
     {
         public Vector3 Color;
-        public float Specular;
+        public float Roughness;
         public bool Metallic;
 
-        public Material(Vector3 color, float specular, bool metallic = false)
+        public Material(Vector3 color, float roughness, bool metallic = false)
         {
             Color = color;
-            Specular = specular;
+            Roughness = roughness;
             Metallic = metallic;
         }
     }

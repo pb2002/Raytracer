@@ -15,10 +15,11 @@ namespace Template
         // The size of the field in which the spheres are spawned
         public const float SpawnFieldSize = 50f;
         // The number of spheres to spawn
-        public const int SphereCount = 64;
+        public const int SphereCount = 100;
 
         // Number of reflection bounces
-        public const int ReflectionBounces = 2;
+        public const int ReflectionBounces = 4;
+        
         // Specular power scalar
         public const float SpecularPow = 1000f;
         // Sky color
@@ -32,6 +33,7 @@ namespace Template
 
         public static bool UseTonemapping = true;
         public static float ExposureBias = 3.0f;
+        public static bool FastMode = true;
         
         public const float DebugUnitScale = SpawnFieldSize * 1.5f;
 

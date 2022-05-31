@@ -58,7 +58,7 @@ namespace Template
                 dataBuffer[baseIdx + 4] = s.Material.Color.X;
                 dataBuffer[baseIdx + 5] = s.Material.Color.Y;
                 dataBuffer[baseIdx + 6] = s.Material.Color.Z;
-                dataBuffer[baseIdx + 7] = s.Material.Specular;
+                dataBuffer[baseIdx + 7] = s.Material.Roughness;
                 dataBuffer[baseIdx + 8] = s.Material.Metallic ? 1 : 0;
             });
 
@@ -79,7 +79,7 @@ namespace Template
                 dataBuffer[baseIdx + 8] = s.Material.Color.X;
                 dataBuffer[baseIdx + 9] = s.Material.Color.Y;
                 dataBuffer[baseIdx + 10] = s.Material.Color.Z;
-                dataBuffer[baseIdx + 11] = s.Material.Specular;
+                dataBuffer[baseIdx + 11] = s.Material.Roughness;
                 dataBuffer[baseIdx + 12] = s.Material.Metallic ? 1 : 0;
             });
 

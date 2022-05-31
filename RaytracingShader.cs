@@ -4,10 +4,12 @@ using System.IO;
 using System.Threading.Tasks;
 using OpenTK;
 using OpenTK.Graphics.OpenGL4;
-
+using SharpEXR;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
+using Half = OpenTK.Half;
+using PixelType = OpenTK.Graphics.OpenGL4.PixelType;
 
 namespace Template
 {
@@ -45,11 +47,46 @@ namespace Template
             LoadTexture("../../assets/marble.png", TextureUnit.Texture1);
             
             // no hdr skyboxes sorry
-            LoadTexture("../../assets/skybox.jpg", TextureUnit.Texture2);
+            LoadEXR("../../assets/skybox.exr", TextureUnit.Texture2);
             
             SetIntUniform("texture1", 1);
             SetIntUniform("texture2", 2);
             CreateVBO();
+        }
+
+        public void LoadEXR(string path, TextureUnit unit)
+        {
+            Console.WriteLine($"Loading image '{path}'...");
+            var exrFile = SharpEXR.EXRFile.FromFile(path);
+            var part = exrFile.Parts[0];
+            part.OpenParallel(path);
+
+            int width = part.Header.DataWindow.Width;
+            int height = part.Header.DataWindow.Height;
+
+            float[] floats = part.GetFloats(ChannelConfiguration.RGB, true, GammaEncoding.Linear);
+            
+            Console.WriteLine("    - Binding...");
+            int id = GL.GenTexture();
+            GL.ActiveTexture(unit);
+            GL.BindTexture( TextureTarget.Texture2D, id );
+            GL.TexParameter( TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear );
+            GL.TexParameter( TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear );
+            GL.TexImage2D(
+                TextureTarget.Texture2D, 
+                0, 
+                PixelInternalFormat.Rgb32f, 
+                width, 
+                height, 
+                0, 
+                PixelFormat.Rgb, 
+                PixelType.Float, 
+                floats
+            );
+            Console.WriteLine("    - Generating mipmaps...");
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+            GL.ActiveTexture(TextureUnit.Texture0);
+            return;
         }
         
         // https://opentk.net/learn/chapter1/5-textures.html

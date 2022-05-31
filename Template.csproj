@@ -37,6 +37,10 @@
     <Reference Include="OpenTK, Version=3.3.1.0, Culture=neutral, PublicKeyToken=bad199fe84eb3df4, processorArchitecture=MSIL">
       <HintPath>packages\OpenTK.3.3.1\lib\net20\OpenTK.dll</HintPath>
     </Reference>
+    <Reference Include="SharpEXR, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+      <HintPath>packages\SharpEXR.1.0.0.19\lib\netstandard2.0\SharpEXR.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="SixLabors.ImageSharp, Version=2.0.0.0, Culture=neutral, PublicKeyToken=d998eea7b14cab13">
       <HintPath>packages\SixLabors.ImageSharp.2.1.2\lib\net472\SixLabors.ImageSharp.dll</HintPath>
       <Private>True</Private>
